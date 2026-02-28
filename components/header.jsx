@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 const navItems = [
@@ -13,7 +12,8 @@ export default function Header() {
     <header className="sticky top-0 z-50 border-b border-hive-taupe bg-hive-charcoal">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-md bg-hive-light">
+
+          {/* <div className="flex h-11 w-11 items-center justify-center rounded-md bg-hive-light">
             <Image
               src="/images/hive-logo.png"
               alt="Hive Construction logo"
@@ -21,7 +21,7 @@ export default function Header() {
               height={32}
               priority
             />
-          </div>
+          </div> */}
 
           <span className="text-lg font-semibold tracking-tight text-hive-light">
             Hive Construction
@@ -40,12 +40,27 @@ export default function Header() {
           ))}
         </nav>
 
+        <div className="hidden items-center gap-3 md:flex">
+          <Link
+            href="/login"
+            className="rounded-md border border-hive-taupe px-4 py-2 text-sm font-semibold text-hive-light transition-colors hover:bg-hive-taupe hover:text-hive-charcoal"
+          >
+            Login
+          </Link>
+          <Link
+            href="/signup"
+            className="rounded-md bg-hive-taupe px-4 py-2 text-sm font-semibold text-hive-charcoal transition-colors hover:bg-hive-light"
+          >
+            Sign Up
+          </Link>
+        </div>
+
         <div className="flex items-center md:hidden">
           <Link
-            href="/properties"
-            className="rounded-md bg-hive-slate px-3 py-2 text-sm font-medium text-hive-light hover:bg-hive-taupe hover:text-hive-charcoal"
+            href="/login"
+            className="rounded-md bg-hive-taupe px-3 py-2 text-sm font-semibold text-hive-charcoal transition-colors hover:bg-hive-light"
           >
-            Menu
+            Login
           </Link>
         </div>
       </div>
