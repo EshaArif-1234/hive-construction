@@ -12,13 +12,14 @@ export default function PropertyCard({
   status,
 }) {
   const statusText = status ?? "Available";
-  const isAvailable = statusText === "Available";
-  const isInProgress = statusText === "In Progress";
   const detailsHref = id ? `/properties/${id}` : "/properties";
   const primaryText = title ?? location;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-hive-taupe/20 bg-hive-light shadow-sm">
+    <Link
+      href={detailsHref}
+      className="group block overflow-hidden rounded-2xl border border-hive-taupe/20 bg-hive-light shadow-sm transition-colors hover:border-hive-taupe/60"
+    >
       <div className="relative h-44 w-full bg-gradient-to-br from-hive-slate to-hive-charcoal">
         {imageSrc ? (
           <Image
@@ -64,14 +65,11 @@ export default function PropertyCard({
         )}
 
         <div className="mt-5">
-          <Link
-            href={detailsHref}
-            className="inline-flex w-full items-center justify-center rounded-md bg-hive-charcoal px-4 py-2.5 text-sm font-semibold text-hive-light transition-colors hover:text-hive-taupe"
-          >
+          <span className="inline-flex w-full items-center justify-center rounded-md bg-hive-charcoal px-4 py-2.5 text-sm font-semibold text-hive-light transition-colors group-hover:text-hive-taupe">
             View Details
-          </Link>
+          </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

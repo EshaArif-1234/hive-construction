@@ -16,18 +16,41 @@ export default function InvestorLayout({ children }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const token = window.localStorage.getItem("hive_investor_token");
-    if (!token) {
-      router.replace("/login?role=investor");
-    }
+    const run = async () => {
+      try {
+        const res = await fetch("/api/auth/investor/me", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+
+        if (!res.ok) {
+          router.replace("/login?role=investor");
+        }
+      } catch (e) {
+        router.replace("/login?role=investor");
+      }
+    };
+
+    run();
   }, [router]);
 
   const activeHref = useMemo(() => router.pathname, [router.pathname]);
 
   const handleLogout = () => {
     if (typeof window === "undefined") return;
-    window.localStorage.removeItem("hive_investor_token");
-    router.push("/login?role=investor");
+
+    const run = async () => {
+      try {
+        await fetch("/api/auth/investor/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+      } finally {
+        router.replace("/login?role=investor");
+      }
+    };
+
+    run();
   };
 
   return (

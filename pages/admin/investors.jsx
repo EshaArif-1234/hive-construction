@@ -1,45 +1,90 @@
 import Head from "next/head";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const MOCK_INVESTORS = [
-  {
-    id: "inv-001",
-    name: "Ali Raza",
-    email: "ali@example.com",
-    status: "Verified",
-    joined: "2026-01-10",
-  },
-  {
-    id: "inv-002",
-    name: "Sara Khan",
-    email: "sara@example.com",
-    status: "Pending",
-    joined: "2026-02-05",
-  },
-  {
-    id: "inv-003",
-    name: "Usman Ahmed",
-    email: "usman@example.com",
-    status: "Verified",
-    joined: "2026-02-12",
-  },
-];
+function formatDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
 
 export default function AdminInvestorsPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
+  const [investors, setInvestors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const token = typeof window === "undefined" ? "" : window.localStorage.getItem("hive_admin_token");
+      const res = await fetch("/api/admin/investors", {
+        headers: {
+          Authorization: `Bearer ${token || ""}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.message || "Unable to load investors.");
+        setInvestors([]);
+        return;
+      }
+
+      setInvestors(Array.isArray(data?.investors) ? data.investors : []);
+    } catch (e) {
+      setError("Unable to load investors.");
+      setInvestors([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const verifyInvestor = async (id) => {
+    setError("");
+    try {
+      const token = typeof window === "undefined" ? "" : window.localStorage.getItem("hive_admin_token");
+      const res = await fetch(`/api/admin/investors/${id}/verify`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token || ""}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.message || "Unable to verify investor.");
+        return;
+      }
+
+      setInvestors((prev) =>
+        prev.map((inv) => (inv.id === id ? { ...inv, status: data?.investor?.status || "verified" } : inv))
+      );
+    } catch (e) {
+      setError("Unable to verify investor.");
+    }
+  };
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    return MOCK_INVESTORS.filter((i) => {
+    return investors.filter((i) => {
+      const displayName = i.fullName || "";
+      const displayStatus = i.status === "verified" ? "Verified" : "Pending";
+
       const matchesQuery = q
-        ? `${i.name} ${i.email} ${i.id}`.toLowerCase().includes(q)
+        ? `${displayName} ${i.email} ${i.id}`.toLowerCase().includes(q)
         : true;
-      const matchesStatus = status === "All" ? true : i.status === status;
+      const matchesStatus = status === "All" ? true : displayStatus === status;
       return matchesQuery && matchesStatus;
     });
-  }, [query, status]);
+  }, [query, status, investors]);
 
   return (
     <>
@@ -57,6 +102,12 @@ export default function AdminInvestorsPage() {
         <p className="mt-2 text-sm leading-6 text-hive-slate">
           View investor profiles and handle verification. (UI only for now)
         </p>
+
+        {error ? (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <input
@@ -77,7 +128,13 @@ export default function AdminInvestorsPage() {
           </select>
 
           <div className="rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-slate">
-            Showing <span className="font-semibold text-hive-charcoal">{rows.length}</span>
+            {loading ? (
+              <span className="font-semibold text-hive-charcoal">Loading...</span>
+            ) : (
+              <>
+                Showing <span className="font-semibold text-hive-charcoal">{rows.length}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -108,7 +165,7 @@ export default function AdminInvestorsPage() {
                   <tr key={i.id}>
                     <td className="border-t border-hive-taupe/20 px-4 py-4">
                       <p className="text-sm font-semibold text-hive-charcoal">
-                        {i.name}
+                        {i.fullName}
                       </p>
                       <p className="mt-1 text-xs text-hive-slate">{i.id}</p>
                     </td>
@@ -116,10 +173,10 @@ export default function AdminInvestorsPage() {
                       {i.email}
                     </td>
                     <td className="border-t border-hive-taupe/20 px-4 py-4 text-sm font-semibold text-hive-charcoal">
-                      {i.status}
+                      {i.status === "verified" ? "Verified" : "Pending"}
                     </td>
                     <td className="border-t border-hive-taupe/20 px-4 py-4 text-sm text-hive-slate">
-                      {i.joined}
+                      {formatDate(i.createdAt)}
                     </td>
                     <td className="border-t border-hive-taupe/20 px-4 py-4">
                       <div className="flex justify-end gap-2">
@@ -131,6 +188,8 @@ export default function AdminInvestorsPage() {
                         </button>
                         <button
                           type="button"
+                          disabled={i.status === "verified"}
+                          onClick={() => verifyInvestor(i.id)}
                           className="rounded-md bg-hive-charcoal px-3 py-2 text-xs font-semibold text-hive-light transition-colors hover:text-hive-taupe"
                         >
                           Verify

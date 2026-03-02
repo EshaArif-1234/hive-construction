@@ -36,6 +36,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setError("");
@@ -48,6 +49,8 @@ export default function LoginPage() {
   const onSubmit = (e) => {
     e.preventDefault();
     setError("");
+
+    if (loading) return;
 
     if (!selectedRole) {
       setError("Please select a role (Admin or Investor).");
@@ -71,8 +74,31 @@ export default function LoginPage() {
     }
 
     if (selectedRole === "investor") {
-      window.localStorage.setItem("hive_investor_token", "ok");
-      router.push("/investor");
+      const run = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/auth/investor/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: u, password: p }),
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            setError(data?.message || "Unable to login.");
+            return;
+          }
+
+          router.push("/investor");
+        } catch (err) {
+          setError("Unable to login. Please try again.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      run();
       return;
     }
   };
@@ -194,9 +220,15 @@ export default function LoginPage() {
 
                   <button
                     type="submit"
-                    className="mt-1 inline-flex items-center justify-center rounded-md bg-hive-taupe px-5 py-2.5 text-sm font-semibold text-hive-charcoal transition-colors hover:bg-hive-light"
+                    disabled={loading}
+                    className={
+                      "mt-1 inline-flex items-center justify-center rounded-md px-5 py-2.5 text-sm font-semibold transition-colors " +
+                      (loading
+                        ? "bg-hive-taupe/60 text-hive-charcoal"
+                        : "bg-hive-taupe text-hive-charcoal hover:bg-hive-light")
+                    }
                   >
-                    Continue
+                    {loading ? "Signing in..." : "Continue"}
                   </button>
 
                   {selectedRole === "admin" ? (
