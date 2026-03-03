@@ -1,59 +1,21 @@
 import Head from "next/head";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import PropertyCard from "@/components/PropertyCard";
 import WebsiteFooter from "@/components/WebsiteFooter";
 
-const PROPERTIES = [
-  {
-    id: "lahore-01",
-    title: "Lahore Residential Build",
-    location: "Lahore",
-    priceValue: 8500000,
-    priceLabel: "PKR 8,500,000 (Est.)",
-    status: "Available",
-  },
-  {
-    id: "islamabad-01",
-    title: "Islamabad Land + Construction",
-    location: "Islamabad",
-    priceValue: 12500000,
-    priceLabel: "PKR 12,500,000 (Est.)",
-    status: "In Progress",
-  },
-  {
-    id: "karachi-01",
-    title: "Karachi Residential Sale",
-    location: "Karachi",
-    priceValue: 9700000,
-    priceLabel: "PKR 9,700,000 (Est.)",
-    status: "Sold",
-  },
-  {
-    id: "rawalpindi-01",
-    title: "Rawalpindi Residential Opportunity",
-    location: "Rawalpindi",
-    priceValue: 6500000,
-    priceLabel: "PKR 6,500,000 (Est.)",
-    status: "Available",
-  },
-  {
-    id: "multan-01",
-    title: "Multan Residential Development",
-    location: "Multan",
-    priceValue: 5200000,
-    priceLabel: "PKR 5,200,000 (Est.)",
-    status: "Available",
-  },
-  {
-    id: "faisalabad-01",
-    title: "Faisalabad Project",
-    location: "Faisalabad",
-    priceValue: 7600000,
-    priceLabel: "PKR 7,600,000 (Est.)",
-    status: "In Progress",
-  },
-];
+function formatStatus(status) {
+  if (status === "available") return "Available";
+  if (status === "in-progress") return "In Progress";
+  if (status === "sold") return "Sold";
+  return "Available";
+}
+
+function formatCurrency(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  return `PKR ${n.toLocaleString()} (Est.)`;
+}
 
 function parsePriceRange(range) {
   if (range === "under_7m") return { min: 0, max: 7000000 };
@@ -63,28 +25,68 @@ function parsePriceRange(range) {
 }
 
 export default function PropertiesPage() {
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [priceRange, setPriceRange] = useState("all");
   const [status, setStatus] = useState("all");
   const [visibleCount, setVisibleCount] = useState(6);
 
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setError("");
+      setLoading(true);
+      try {
+        const res = await fetch("/api/properties");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) {
+            setError(data?.message || "Unable to load properties.");
+            setProperties([]);
+          }
+          return;
+        }
+        if (!cancelled) {
+          setProperties(Array.isArray(data?.properties) ? data.properties : []);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError("Unable to load properties.");
+          setProperties([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     const { min, max } = parsePriceRange(priceRange);
 
-    return PROPERTIES.filter((p) => {
+    return properties.filter((p) => {
       const matchesSearch =
         !s ||
         p.title.toLowerCase().includes(s) ||
         p.location.toLowerCase().includes(s);
 
-      const matchesStatus = status === "all" ? true : p.status === status;
+      const matchesStatus = status === "all" ? true : formatStatus(p.status) === status;
 
-      const matchesPrice = p.priceValue >= min && p.priceValue < max;
+      const priceValue = Number(p.expectedSalePrice);
+      const matchesPrice = Number.isFinite(priceValue)
+        ? priceValue >= min && priceValue < max
+        : true;
 
       return matchesSearch && matchesStatus && matchesPrice;
     });
-  }, [search, priceRange, status]);
+  }, [search, priceRange, status, properties]);
 
   const visible = filtered.slice(0, visibleCount);
   const canLoadMore = visibleCount < filtered.length;
@@ -188,6 +190,18 @@ export default function PropertiesPage() {
                 Clear filters
               </button>
             </div>
+
+            {error ? (
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            {loading ? (
+              <div className="mt-4 rounded-xl border border-hive-taupe/20 bg-hive-light p-3 text-sm text-hive-slate">
+                Loading properties...
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-10">
@@ -217,8 +231,13 @@ export default function PropertiesPage() {
                       id={p.id}
                       title={p.title}
                       location={p.location}
-                      price={p.priceLabel}
-                      status={p.status}
+                      price={formatCurrency(p.expectedSalePrice)}
+                      status={formatStatus(p.status)}
+                      imageSrc={
+                        p.imagesCount && p.imagesCount > 0
+                          ? `/api/properties/${p.id}/image?index=0`
+                          : ""
+                      }
                       imageLabel="Property Image"
                     />
                   ))}

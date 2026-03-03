@@ -10,6 +10,16 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 const nextConfig: NextConfig = {
+  images: {
+    localPatterns: [
+      {
+        pathname: "/api/properties/**/image",
+      },
+      {
+        pathname: "/api/properties/*/image",
+      },
+    ],
+  },
    // output: 'export', 
 };
 

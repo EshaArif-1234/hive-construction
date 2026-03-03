@@ -27,6 +27,7 @@ function RoleCard({ title, description, selected, onClick }) {
 export default function LoginPage() {
   const router = useRouter();
   const role = router.query.role;
+  const next = router.query.next;
 
   const selectedRole = useMemo(() => {
     if (role === "admin" || role === "investor") return role;
@@ -83,7 +84,11 @@ export default function LoginPage() {
             return;
           }
 
-          router.push("/admin");
+          if (typeof next === "string" && next.startsWith("/")) {
+            router.push(next);
+          } else {
+            router.push("/admin");
+          }
         } catch (err) {
           setError("Unable to login. Please try again.");
         } finally {
@@ -112,7 +117,11 @@ export default function LoginPage() {
             return;
           }
 
-          router.push("/investor");
+          if (typeof next === "string" && next.startsWith("/")) {
+            router.push(next);
+          } else {
+            router.push("/investor");
+          }
         } catch (err) {
           setError("Unable to login. Please try again.");
         } finally {

@@ -22,13 +22,21 @@ export default function PropertyCard({
     >
       <div className="relative h-44 w-full bg-gradient-to-br from-hive-slate to-hive-charcoal">
         {imageSrc ? (
-          <Image
-            src={imageSrc}
-            alt={primaryText ?? "Property image"}
-            fill
-            className="object-cover"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          />
+          String(imageSrc).startsWith("/api/") ? (
+            <img
+              src={imageSrc}
+              alt={primaryText ?? "Property image"}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <Image
+              src={imageSrc}
+              alt={primaryText ?? "Property image"}
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            />
+          )
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-sm font-medium text-hive-light/80">

@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
-  const { fullName, email, phone, password } = req.body ?? {};
+  const { fullName, email, phone, cnic, address, password } = req.body ?? {};
 
   if (!fullName || !email || !password) {
     return res.status(400).json({ message: "fullName, email, and password are required" });
@@ -30,6 +30,8 @@ export default async function handler(req, res) {
       fullName: String(fullName).trim(),
       email: normalizedEmail,
       phone: phone ? String(phone).trim() : "",
+      cnic: cnic ? String(cnic).trim() : "",
+      address: address ? String(address).trim() : "",
       passwordHash,
       status: "pending",
     });
