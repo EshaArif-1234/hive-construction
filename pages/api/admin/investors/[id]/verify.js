@@ -1,17 +1,10 @@
 import dbConnect from "@/lib/dbConnect";
 import Investor from "@/models/Investor";
-
-function requireAdmin(req, res) {
-  const auth = req.headers.authorization || "";
-  if (auth !== "Bearer ok") {
-    res.status(401).json({ message: "Unauthorized" });
-    return false;
-  }
-  return true;
-}
+import { requireAdmin } from "@/lib/adminSession";
 
 export default async function handler(req, res) {
-  if (!requireAdmin(req, res)) return;
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
 
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);

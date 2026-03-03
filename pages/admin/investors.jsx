@@ -19,11 +19,7 @@ export default function AdminInvestorsPage() {
     setError("");
     setLoading(true);
     try {
-      const token = typeof window === "undefined" ? "" : window.localStorage.getItem("hive_admin_token");
       const res = await fetch("/api/admin/investors", {
-        headers: {
-          Authorization: `Bearer ${token || ""}`,
-        },
       });
 
       const data = await res.json().catch(() => ({}));
@@ -49,12 +45,8 @@ export default function AdminInvestorsPage() {
   const verifyInvestor = async (id) => {
     setError("");
     try {
-      const token = typeof window === "undefined" ? "" : window.localStorage.getItem("hive_admin_token");
       const res = await fetch(`/api/admin/investors/${id}/verify`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token || ""}`,
-        },
       });
 
       const data = await res.json().catch(() => ({}));

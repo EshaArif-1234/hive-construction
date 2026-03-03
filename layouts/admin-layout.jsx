@@ -16,8 +16,21 @@ export default function AdminLayout({ children }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const token = window.localStorage.getItem("hive_admin_token");
-    if (!token) router.replace("/login?role=admin");
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch("/api/auth/admin/me");
+        if (!res.ok) {
+          if (!cancelled) router.replace("/login?role=admin");
+        }
+      } catch (e) {
+        if (!cancelled) router.replace("/login?role=admin");
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, [router.pathname]);
 
   const activeHref = useMemo(() => {
@@ -26,8 +39,16 @@ export default function AdminLayout({ children }) {
 
   const handleLogout = () => {
     if (typeof window === "undefined") return;
-    window.localStorage.removeItem("hive_admin_token");
-    router.replace("/login?role=admin");
+    const run = async () => {
+      try {
+        await fetch("/api/auth/admin/logout", { method: "POST" });
+      } catch (e) {
+        // ignore
+      } finally {
+        router.replace("/login?role=admin");
+      }
+    };
+    run();
   };
 
   return (

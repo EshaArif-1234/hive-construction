@@ -68,8 +68,30 @@ export default function LoginPage() {
     if (typeof window === "undefined") return;
 
     if (selectedRole === "admin") {
-      window.localStorage.setItem("hive_admin_token", "ok");
-      router.push("/admin");
+      const run = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/auth/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: u, password: p }),
+          });
+
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setError(data?.message || "Unable to login.");
+            return;
+          }
+
+          router.push("/admin");
+        } catch (err) {
+          setError("Unable to login. Please try again.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      run();
       return;
     }
 
