@@ -105,9 +105,7 @@ function IconChevronRight(props) {
 function SidebarNav({ activeHref, onNavigate }) {
   return (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-      <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
-        Menu
-      </p>
+      
       {navItems.map(({ label, href, Icon }) => {
         const isActive = activeHref === href;
 
@@ -151,22 +149,11 @@ function SidebarChrome({ activeHref, onLogout, showFooterCard, onNavigate }) {
 
       <SidebarNav activeHref={activeHref} onNavigate={onNavigate} />
 
-      {showFooterCard ? (
-        <div className="mx-3 mb-3 rounded-xl border border-white/[0.06] bg-white/[0.04] p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-taupe/90">
-            Overview
-          </p>
-          <p className="mt-2 text-xs leading-relaxed text-white/55">
-            Manage listings, investors, investments, and compliance from one place.
-          </p>
-        </div>
-      ) : null}
-
       <div className="mt-auto border-t border-white/[0.08] p-4">
         <button
           type="button"
           onClick={onLogout}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:border-hive-taupe/50 hover:bg-hive-taupe hover:text-hive-charcoal"
+          className="w-full rounded-lg border border-white/15 bg-white/[0.06] px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:border-hive-taupe/50 hover:bg-hive-taupe hover:text-hive-charcoal"
         >
           Log out
         </button>
@@ -341,11 +328,8 @@ export default function AdminLayout({ children }) {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3.5 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
+                  className="rounded-xl border border-neutral-300 bg-white px-3.5 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
                 >
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                  </svg>
                   Log out
                 </button>
               </div>
