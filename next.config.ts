@@ -1,12 +1,14 @@
 import type { NextConfig } from "next";
 
-if (process.env.NODE_ENV !== "test") {
-  // eslint-disable-next-line no-console
-  console.log("[Hive Admin] Credentials (fixed)");
-  // eslint-disable-next-line no-console
-  console.log("[Hive Admin] email: hiveconstruction@admin.com");
-  // eslint-disable-next-line no-console
-  console.log("[Hive Admin] password: hive@123456");
+const DEFAULT_ADMIN_EMAIL = "hiveconstruction@admin.com";
+const DEFAULT_ADMIN_PASSWORD = "hive@123456";
+
+if (process.env.NODE_ENV === "development") {
+  const adminEmail = process.env.ADMIN_SEED_EMAIL || DEFAULT_ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+  console.log("[Hive Admin] Seeded / default login (matches DB ensureDefaultAdmin)");
+  console.log(`[Hive Admin] email: ${adminEmail}`);
+  console.log(`[Hive Admin] password: ${adminPassword}`);
 }
 
 const nextConfig: NextConfig = {

@@ -1,6 +1,9 @@
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { serialize } from "cookie";
 import { ADMIN_COOKIE_NAME } from "@/lib/adminSession";
+import Admin from "@/models/Admin";
+import { ensureDefaultAdmin } from "@/lib/ensureDefaultAdmin";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -21,25 +24,37 @@ export default async function handler(req, res) {
   const normalizedEmail = String(email).toLowerCase().trim();
   const p = String(password);
 
-  const ok = normalizedEmail === "hiveconstruction@admin.com" && p === "hive@123456";
-  if (!ok) {
-    return res.status(401).json({ message: "Invalid credentials" });
+  try {
+    await ensureDefaultAdmin();
+
+    const admin = await Admin.findOne({ email: normalizedEmail });
+    if (!admin) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const ok = await bcrypt.compare(p, admin.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ role: "admin", sub: normalizedEmail }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.setHeader(
+      "Set-Cookie",
+      serialize(ADMIN_COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      })
+    );
+
+    return res.status(200).json({ message: "Logged in" });
+  } catch (err) {
+    console.error("[api/auth/admin/login]", err);
+    return res.status(500).json({ message: "Server error" });
   }
-
-  const token = jwt.sign({ role: "admin", sub: normalizedEmail }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
-
-  res.setHeader(
-    "Set-Cookie",
-    serialize(ADMIN_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    })
-  );
-
-  return res.status(200).json({ message: "Logged in" });
 }

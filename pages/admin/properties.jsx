@@ -27,6 +27,9 @@ export default function AdminPropertiesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState("");
 
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingId, setEditingId] = useState("");
+
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [totalCost, setTotalCost] = useState("");
@@ -35,6 +38,8 @@ export default function AdminPropertiesPage() {
   const [expectedSalePrice, setExpectedSalePrice] = useState("");
   const [propertyStatus, setPropertyStatus] = useState("available");
   const [images, setImages] = useState([]);
+
+  const [deletingId, setDeletingId] = useState("");
 
   const load = async () => {
     setError("");
@@ -56,12 +61,42 @@ export default function AdminPropertiesPage() {
     }
   };
 
+  const onDelete = async (p) => {
+    const id = String(p?.id || "");
+    if (!id) return;
+
+    const ok = window.confirm(`Delete property "${p?.title || ""}"?`);
+    if (!ok) return;
+
+    setError("");
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/properties/${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.message || "Unable to delete property.");
+        return;
+      }
+
+      setProperties((prev) => prev.filter((x) => String(x.id) !== id));
+    } catch (e) {
+      setError("Unable to delete property.");
+    } finally {
+      setDeletingId("");
+    }
+  };
+
   useEffect(() => {
     load();
   }, []);
 
   const openModal = () => {
     setModalError("");
+    setIsEditMode(false);
+    setEditingId("");
     setTitle("");
     setLocation("");
     setTotalCost("");
@@ -69,6 +104,21 @@ export default function AdminPropertiesPage() {
     setLandCost("");
     setExpectedSalePrice("");
     setPropertyStatus("available");
+    setImages([]);
+    setShowModal(true);
+  };
+
+  const openEditModal = (p) => {
+    setModalError("");
+    setIsEditMode(true);
+    setEditingId(String(p?.id || ""));
+    setTitle(String(p?.title || ""));
+    setLocation(String(p?.location || ""));
+    setTotalCost(String(p?.totalCost ?? ""));
+    setConstructionCost(String(p?.constructionCost ?? ""));
+    setLandCost(String(p?.landCost ?? ""));
+    setExpectedSalePrice(String(p?.expectedSalePrice ?? ""));
+    setPropertyStatus(String(p?.status || "available"));
     setImages([]);
     setShowModal(true);
   };
@@ -144,6 +194,69 @@ export default function AdminPropertiesPage() {
       setShowModal(false);
     } catch (e) {
       setModalError("Unable to create property.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onUpdate = async (e) => {
+    e.preventDefault();
+    setModalError("");
+    if (submitting) return;
+
+    if (!editingId) {
+      setModalError("Invalid property id.");
+      return;
+    }
+
+    const t = title.trim();
+    const loc = location.trim();
+    if (!t || !loc) {
+      setModalError("Please fill in title and location.");
+      return;
+    }
+
+    const tc = Number(totalCost);
+    const cc = Number(constructionCost);
+    const lc = Number(landCost);
+    const esp = Number(expectedSalePrice);
+
+    if (!Number.isFinite(tc) || !Number.isFinite(cc) || !Number.isFinite(lc) || !Number.isFinite(esp)) {
+      setModalError("Please enter valid numbers for costs and expected sale price.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/properties/${editingId}` , {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: t,
+          location: loc,
+          totalCost: tc,
+          constructionCost: cc,
+          landCost: lc,
+          status: String(propertyStatus || "available"),
+          expectedSalePrice: esp,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setModalError(data?.message || "Unable to update property.");
+        return;
+      }
+
+      if (data?.property) {
+        setProperties((prev) => prev.map((x) => (String(x.id) === String(editingId) ? data.property : x)));
+      } else {
+        await load();
+      }
+
+      setShowModal(false);
+    } catch (e) {
+      setModalError("Unable to update property.");
     } finally {
       setSubmitting(false);
     }
@@ -278,6 +391,7 @@ export default function AdminPropertiesPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
+                          onClick={() => openEditModal(p)}
                           className="rounded-md border border-hive-charcoal px-3 py-2 text-xs font-semibold text-hive-charcoal transition-colors hover:border-hive-taupe hover:text-hive-taupe"
                         >
                           Edit
@@ -285,8 +399,10 @@ export default function AdminPropertiesPage() {
                         <button
                           type="button"
                           className="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50"
+                          disabled={deletingId === String(p.id)}
+                          onClick={() => onDelete(p)}
                         >
-                          Delete
+                          {deletingId === String(p.id) ? "Deleting..." : "Delete"}
                         </button>
                       </div>
                     </td>
@@ -318,10 +434,12 @@ export default function AdminPropertiesPage() {
                   Property
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-hive-charcoal">
-                  Add Property
+                  {isEditMode ? "Edit Property" : "Add Property"}
                 </h2>
                 <p className="mt-1 text-sm text-hive-slate">
-                  Upload 1 to 5 images and fill all required fields.
+                  {isEditMode
+                    ? "Update property details. (Image editing is not available yet.)"
+                    : "Upload 1 to 5 images and fill all required fields."}
                 </p>
               </div>
 
@@ -334,7 +452,7 @@ export default function AdminPropertiesPage() {
               </button>
             </div>
 
-            <form onSubmit={onCreate} className="mt-6 grid gap-4">
+            <form onSubmit={isEditMode ? onUpdate : onCreate} className="mt-6 grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm font-semibold text-hive-charcoal">Title</label>
@@ -425,6 +543,7 @@ export default function AdminPropertiesPage() {
                     type="file"
                     accept="image/*"
                     multiple
+                    disabled={isEditMode}
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
                       setImages(files);
@@ -459,7 +578,13 @@ export default function AdminPropertiesPage() {
                     (submitting ? "opacity-70" : "")
                   }
                 >
-                  {submitting ? "Creating..." : "Create Property"}
+                  {isEditMode
+                    ? submitting
+                      ? "Saving..."
+                      : "Save Changes"
+                    : submitting
+                      ? "Creating..."
+                      : "Create Property"}
                 </button>
               </div>
             </form>

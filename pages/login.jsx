@@ -235,6 +235,16 @@ export default function LoginPage() {
                       placeholder={selectedRole === "admin" ? "admin" : "••••••••"}
                       autoComplete="current-password"
                     />
+                    {selectedRole === "investor" ? (
+                      <div className="mt-2 text-right">
+                        <Link
+                          href="/forgot-password"
+                          className="text-sm font-semibold text-hive-charcoal underline decoration-hive-taupe/60 hover:text-hive-taupe"
+                        >
+                          Forgot password?
+                        </Link>
+                      </div>
+                    ) : null}
                   </div>
 
                   {selectedRole ? (
@@ -264,7 +274,7 @@ export default function LoginPage() {
 
                   {selectedRole === "admin" ? (
                     <p className="text-xs text-hive-slate">
-                      Admin credentials are not enforced yet (frontend-only).
+                      Admin sign-in uses your MongoDB admin account (seeded on first login if missing).
                     </p>
                   ) : null}
                 </form>
