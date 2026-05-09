@@ -13,6 +13,13 @@ if (process.env.NODE_ENV === "development") {
 
 const nextConfig: NextConfig = {
   images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        pathname: "/**",
+      },
+    ],
     localPatterns: [
       {
         pathname: "/api/properties/**/image",

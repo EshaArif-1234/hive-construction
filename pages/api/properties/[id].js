@@ -1,5 +1,6 @@
 import dbConnect from "@/lib/dbConnect";
 import Property from "@/models/Property";
+import { serializePropertyImages } from "@/lib/propertyImages";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -25,6 +26,8 @@ export default async function handler(req, res) {
       return res.status(404).json({ message: "Property not found" });
     }
 
+    const img = serializePropertyImages(p);
+
     return res.status(200).json({
       property: {
         id: String(p._id),
@@ -36,10 +39,12 @@ export default async function handler(req, res) {
         status: p.status,
         expectedSalePrice: p.expectedSalePrice,
         createdAt: p.createdAt,
-        imagesCount: Array.isArray(p.images) ? p.images.length : 0,
+        imagesCount: img.imagesCount,
+        imageUrls: img.imageUrls,
+        coverImage: img.coverImage,
       },
     });
-  } catch (err) {
+  } catch {
     return res.status(500).json({ message: "Server error" });
   }
 }

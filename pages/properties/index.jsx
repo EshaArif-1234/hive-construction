@@ -234,9 +234,10 @@ export default function PropertiesPage() {
                       price={formatCurrency(p.expectedSalePrice)}
                       status={formatStatus(p.status)}
                       imageSrc={
-                        p.imagesCount && p.imagesCount > 0
+                        p.coverImage ||
+                        (p.imagesCount && p.imagesCount > 0
                           ? `/api/properties/${p.id}/image?index=0`
-                          : ""
+                          : "")
                       }
                       imageLabel="Property Image"
                     />

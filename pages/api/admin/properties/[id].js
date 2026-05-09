@@ -1,6 +1,8 @@
 import dbConnect from "@/lib/dbConnect";
 import { requireAdmin } from "@/lib/adminSession";
 import Property from "@/models/Property";
+import { destroyCloudinaryAsset } from "@/lib/cloudinary";
+import { serializePropertyImages } from "@/lib/propertyImages";
 
 export default async function handler(req, res) {
   const payload = requireAdmin(req, res);
@@ -15,13 +17,25 @@ export default async function handler(req, res) {
     try {
       await dbConnect();
 
+      const existing = await Property.findById(id).select("images").lean();
+      if (!existing) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+
+      const imgs = Array.isArray(existing.images) ? existing.images : [];
+      for (const img of imgs) {
+        if (img?.publicId) {
+          await destroyCloudinaryAsset(String(img.publicId));
+        }
+      }
+
       const deleted = await Property.findByIdAndDelete(id).select("_id").lean();
       if (!deleted) {
         return res.status(404).json({ message: "Property not found" });
       }
 
       return res.status(200).json({ message: "Property deleted" });
-    } catch (e) {
+    } catch {
       return res.status(500).json({ message: "Server error" });
     }
   }
@@ -96,6 +110,8 @@ export default async function handler(req, res) {
       return res.status(404).json({ message: "Property not found" });
     }
 
+    const img = serializePropertyImages(updated);
+
     return res.status(200).json({
       message: "Property updated",
       property: {
@@ -108,10 +124,11 @@ export default async function handler(req, res) {
         status: updated.status,
         expectedSalePrice: updated.expectedSalePrice,
         createdAt: updated.createdAt,
-        imagesCount: Array.isArray(updated.images) ? updated.images.length : 0,
+        imagesCount: img.imagesCount,
+        coverImage: img.coverImage,
       },
     });
-  } catch (e) {
+  } catch {
     return res.status(500).json({ message: "Server error" });
   }
 }

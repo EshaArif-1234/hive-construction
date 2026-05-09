@@ -41,9 +41,7 @@ function formatCurrency(value) {
 
 export default function PropertyDetailsPage() {
   const router = useRouter();
-  const { id, role, invest } = router.query;
-
-  const isInvestor = role === "investor";
+  const { id, invest } = router.query;
 
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -167,6 +165,10 @@ export default function PropertyDetailsPage() {
   };
 
   const activeImage = useMemo(() => {
+    const urls = Array.isArray(property?.imageUrls) ? property.imageUrls : [];
+    if (urls.length > 0 && activeIndex < urls.length) {
+      return urls[activeIndex];
+    }
     const count = Number(property?.imagesCount || 0);
     if (property?.id && count > 0 && activeIndex < count) {
       return `/api/properties/${property.id}/image?index=${activeIndex}`;
@@ -176,10 +178,19 @@ export default function PropertyDetailsPage() {
   }, [property, activeIndex]);
 
   const galleryIndexes = useMemo(() => {
+    const urls = Array.isArray(property?.imageUrls) ? property.imageUrls : [];
+    if (urls.length > 0) return urls.map((_, i) => i);
     const count = Number(property?.imagesCount || 0);
     if (!Number.isFinite(count) || count <= 0) return [];
     return Array.from({ length: count }, (_, i) => i);
   }, [property]);
+
+  const thumbSrc = (idx) => {
+    const urls = Array.isArray(property?.imageUrls) ? property.imageUrls : [];
+    if (urls[idx]) return urls[idx];
+    if (property?.id) return `/api/properties/${property.id}/image?index=${idx}`;
+    return "";
+  };
 
   return (
     <>
@@ -258,7 +269,7 @@ export default function PropertyDetailsPage() {
 
                     <div className="grid grid-cols-4 gap-3">
                       {(galleryIndexes ?? []).map((idx) => {
-                        const src = `/api/properties/${property.id}/image?index=${idx}`;
+                        const src = thumbSrc(idx);
                         const isActive = idx === activeIndex;
 
                         return (

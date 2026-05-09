@@ -1,15 +1,20 @@
 import mongoose from "mongoose";
 
+const PropertyImageSchema = new mongoose.Schema(
+  {
+    url: { type: String, default: "" },
+    publicId: { type: String, default: "" },
+    data: { type: Buffer, default: undefined },
+    contentType: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const PropertySchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
     images: {
-      type: [
-        {
-          data: { type: Buffer, default: null },
-          contentType: { type: String, default: "" },
-        },
-      ],
+      type: [PropertyImageSchema],
       default: [],
     },
     location: { type: String, required: true, trim: true },

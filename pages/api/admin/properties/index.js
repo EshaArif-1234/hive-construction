@@ -2,6 +2,8 @@ import multer from "multer";
 import dbConnect from "@/lib/dbConnect";
 import { requireAdmin } from "@/lib/adminSession";
 import Property from "@/models/Property";
+import { isCloudinaryConfigured, uploadImageBuffer } from "@/lib/cloudinary";
+import { serializePropertyImages } from "@/lib/propertyImages";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -36,25 +38,36 @@ export default async function handler(req, res) {
         .lean();
 
       return res.status(200).json({
-        properties: properties.map((p) => ({
-          id: String(p._id),
-          title: p.title,
-          location: p.location,
-          totalCost: p.totalCost,
-          constructionCost: p.constructionCost,
-          landCost: p.landCost,
-          status: p.status,
-          expectedSalePrice: p.expectedSalePrice,
-          createdAt: p.createdAt,
-          imagesCount: Array.isArray(p.images) ? p.images.length : 0,
-        })),
+        properties: properties.map((p) => {
+          const img = serializePropertyImages(p);
+          return {
+            id: String(p._id),
+            title: p.title,
+            location: p.location,
+            totalCost: p.totalCost,
+            constructionCost: p.constructionCost,
+            landCost: p.landCost,
+            status: p.status,
+            expectedSalePrice: p.expectedSalePrice,
+            createdAt: p.createdAt,
+            imagesCount: img.imagesCount,
+            coverImage: img.coverImage,
+          };
+        }),
       });
-    } catch (err) {
+    } catch {
       return res.status(500).json({ message: "Server error" });
     }
   }
 
   if (req.method === "POST") {
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({
+        message:
+          "Image uploads require Cloudinary. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.",
+      });
+    }
+
     try {
       await runMiddleware(req, res, upload.array("images", 5));
 
@@ -100,12 +113,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ message: "Maximum 5 images are allowed" });
       }
 
-      const images = files
-        .filter((f) => f && f.buffer)
-        .map((f) => ({
-          data: f.buffer,
-          contentType: f.mimetype || "application/octet-stream",
-        }));
+      const images = [];
+      for (const f of files) {
+        if (!f?.buffer?.length) continue;
+        const { url, publicId } = await uploadImageBuffer(f.buffer);
+        images.push({ url, publicId });
+      }
 
       await dbConnect();
 
@@ -120,6 +133,8 @@ export default async function handler(req, res) {
         images,
       });
 
+      const img = serializePropertyImages(property.toObject());
+
       return res.status(201).json({
         message: "Property created",
         property: {
@@ -132,10 +147,11 @@ export default async function handler(req, res) {
           status: property.status,
           expectedSalePrice: property.expectedSalePrice,
           createdAt: property.createdAt,
-          imagesCount: Array.isArray(property.images) ? property.images.length : 0,
+          imagesCount: img.imagesCount,
+          coverImage: img.coverImage,
         },
       });
-    } catch (err) {
+    } catch {
       return res.status(500).json({ message: "Server error" });
     }
   }
