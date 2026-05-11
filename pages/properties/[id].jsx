@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-import InfoCard from "@/components/InfoCard";
 import StatusBadge from "@/components/StatusBadge";
 import WebsiteFooter from "@/components/WebsiteFooter";
 
@@ -21,16 +20,55 @@ function svgDataUri(label) {
 }
 
 function formatStatus(status) {
-  if (status === "available") return "Available";
-  if (status === "in-progress") return "In Progress";
-  if (status === "sold") return "Sold";
-  return "Available";
+  const value = String(status || "").toLowerCase();
+  if (value === "draft") return "Draft";
+  if (value === "active") return "Active";
+  if (value === "paused") return "Paused";
+  if (value === "completed") return "Completed";
+  if (value === "archived") return "Archived";
+  return "Draft";
 }
 
-function formatCurrency(value) {
+function formatPlainCurrency(value) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return "";
-  return `PKR ${n.toLocaleString()} (Est.)`;
+  if (!Number.isFinite(n)) return "PKR -";
+  return `PKR ${n.toLocaleString()}`;
+}
+
+function formatExpectedProfit(minPct, maxPct) {
+  const min = Number(minPct);
+  const max = Number(maxPct);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return "N/A";
+  if (max < min || max <= 0) return "N/A";
+  return `${min}-${max}%`;
+}
+
+function formatYesNo(value) {
+  return value ? "Yes" : "No";
+}
+
+function formatEarlyWithdrawalProfitRule(rule) {
+  const normalized = String(rule || "").toLowerCase();
+  if (normalized === "no-profit") return "No Profit";
+  if (normalized === "partial-profit") return "Partial Profit";
+  if (normalized === "full-profit") return "Full Profit";
+  return "No Profit";
+}
+
+function formatRiskLevel(level) {
+  const normalized = String(level || "").toLowerCase();
+  if (normalized === "low") return "Low";
+  if (normalized === "high") return "High";
+  return "Medium";
+}
+
+function humanizeKebab(value) {
+  const v = String(value || "").trim();
+  if (!v) return "N/A";
+  return v
+    .split("-")
+    .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
+    .join(" ");
 }
 
 export default function PropertyDetailsPage() {
@@ -46,6 +84,8 @@ export default function PropertyDetailsPage() {
 
   const [showInvestModal, setShowInvestModal] = useState(false);
   const [amount, setAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("bank-transfer");
+  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [investError, setInvestError] = useState("");
   const [investSuccess, setInvestSuccess] = useState("");
   const [investSubmitting, setInvestSubmitting] = useState(false);
@@ -66,7 +106,37 @@ export default function PropertyDetailsPage() {
           if (!cancelled) setProperty(null);
           return;
         }
-        if (!cancelled) setProperty(data?.property || null);
+        if (!cancelled) {
+          const p = data?.property || null;
+          if (!p) {
+            setProperty(null);
+          } else {
+            const required = Number(p.investorFundingRequired || 0);
+            const collected = Number(p.fundingCollected || 0);
+            const fundingProgressPct =
+              required > 0 ? Math.min(100, Math.max(0, (collected / required) * 100)) : 0;
+            setProperty({
+              ...p,
+              location: p.city || "",
+              fullAddress: p.address || "",
+              expectedSalePrice: p.expectedSellingPrice,
+              investorContribution: p.investorFundingRequired,
+              expectedProfitMinPct: p.expectedProfitPercentage,
+              expectedProfitMaxPct: p.expectedProfitPercentage,
+              expectedSaleDurationMonths: p.expectedSellingDuration,
+              currentFundingCollected: p.fundingCollected,
+              minimumInvestmentAllowed: p.minimumInvestment,
+              investorProfitSharePct: p.investorProfitShare,
+              hiveProfitSharePct: p.hiveProfitShare,
+              expectedCompletionDurationMonths: p.expectedCompletionDuration,
+              expectedSellingDurationMonths: p.expectedSellingDuration,
+              earlyWithdrawalProfitRule: p.earlyWithdrawalProfit,
+              featuredProperty: p.featured,
+              fundingProgressPct,
+              status: p.listingStatus,
+            });
+          }
+        }
         if (!cancelled) setActiveIndex(0);
       } catch (e) {
         if (!cancelled) {
@@ -102,11 +172,17 @@ export default function PropertyDetailsPage() {
     };
   }, []);
 
+  const canInvest =
+    property?.listingStatus === "active" &&
+    ["under-construction", "gray-structure-completed", "finishing-work"].includes(
+      String(property?.constructionStatus || "")
+    );
+
   useEffect(() => {
-    if (invest === "1" && isLoggedIn) {
+    if (invest === "1" && isLoggedIn && canInvest) {
       setShowInvestModal(true);
     }
-  }, [invest, isLoggedIn]);
+  }, [invest, isLoggedIn, canInvest]);
 
   const goToLoginToInvest = () => {
     if (typeof window === "undefined") return;
@@ -131,12 +207,27 @@ export default function PropertyDetailsPage() {
       return;
     }
 
+    if (!paymentMethod) {
+      setInvestError("Please select a payment method.");
+      return;
+    }
+
+    if (!paymentScreenshot) {
+      setInvestError("Please upload a payment screenshot.");
+      return;
+    }
+
     setInvestSubmitting(true);
     try {
       const res = await fetch("/api/investments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ propertyId: property.id, amount: amt }),
+        body: JSON.stringify({
+          propertyId: property.id,
+          amount: amt,
+          paymentMethod,
+          paymentScreenshotName: paymentScreenshot.name || "",
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -151,6 +242,11 @@ export default function PropertyDetailsPage() {
 
       setInvestSuccess("Investment created successfully.");
       setAmount("");
+      setPaymentMethod("bank-transfer");
+      setPaymentScreenshot(null);
+      setTimeout(() => {
+        router.push("/investor/investments");
+      }, 700);
     } catch (e) {
       setInvestError("Unable to invest.");
     } finally {
@@ -159,32 +255,76 @@ export default function PropertyDetailsPage() {
   };
 
   const activeImage = useMemo(() => {
-    const urls = Array.isArray(property?.imageUrls) ? property.imageUrls : [];
+    const urls = [
+      property?.thumbnail?.url,
+      ...(Array.isArray(property?.galleryImages)
+        ? property.galleryImages.map((x) => x?.url).filter(Boolean)
+        : []),
+    ].filter(Boolean);
     if (urls.length > 0 && activeIndex < urls.length) {
       return urls[activeIndex];
-    }
-    const count = Number(property?.imagesCount || 0);
-    if (property?.id && count > 0 && activeIndex < count) {
-      return `/api/properties/${property.id}/image?index=${activeIndex}`;
     }
     const label = property?.title || "Property";
     return svgDataUri(label);
   }, [property, activeIndex]);
 
   const galleryIndexes = useMemo(() => {
-    const urls = Array.isArray(property?.imageUrls) ? property.imageUrls : [];
-    if (urls.length > 0) return urls.map((_, i) => i);
-    const count = Number(property?.imagesCount || 0);
-    if (!Number.isFinite(count) || count <= 0) return [];
-    return Array.from({ length: count }, (_, i) => i);
+    const urls = [
+      property?.thumbnail?.url,
+      ...(Array.isArray(property?.galleryImages)
+        ? property.galleryImages.map((x) => x?.url).filter(Boolean)
+        : []),
+    ].filter(Boolean);
+    if (urls.length <= 0) return [];
+    return urls.map((_, i) => i);
   }, [property]);
 
   const thumbSrc = (idx) => {
-    const urls = Array.isArray(property?.imageUrls) ? property.imageUrls : [];
-    if (urls[idx]) return urls[idx];
-    if (property?.id) return `/api/properties/${property.id}/image?index=${idx}`;
-    return "";
+    const urls = [
+      property?.thumbnail?.url,
+      ...(Array.isArray(property?.galleryImages)
+        ? property.galleryImages.map((x) => x?.url).filter(Boolean)
+        : []),
+    ].filter(Boolean);
+    return urls[idx] || "";
   };
+
+  const totalCostNum = Number(property?.totalCost || 0);
+  const investorContributionNum = Number(property?.investorContribution || 0);
+  const currentFundingCollectedNum = Number(property?.currentFundingCollected || 0);
+  const annualRoiPctNum = Number(property?.expectedAnnualRoiPct || property?.expectedProfitPercentage || 0);
+  const hiveContributionNum = Number(property?.hiveContribution || 0);
+  const minimumInvestmentNum = Number(property?.minimumInvestmentAllowed || property?.minimumInvestment || 0);
+  const fundingProgressNum = Math.min(100, Math.max(0, Number(property?.fundingProgressPct || 0)));
+  const availableFundingNeeded = Math.max(
+    0,
+    investorContributionNum - (investorContributionNum * fundingProgressNum) / 100
+  );
+  const estimatedSharePct =
+    Number.isFinite(Number(amount)) && Number(amount) > 0 && investorContributionNum > 0
+      ? (Number(amount) / investorContributionNum) * 100
+      : 0;
+  const avgExpectedProfitPct =
+    (Number(property?.expectedProfitMinPct || 0) + Number(property?.expectedProfitMaxPct || 0)) / 2;
+  const estimatedProfitAmount =
+    Number.isFinite(Number(amount)) && Number(amount) > 0 && Number.isFinite(avgExpectedProfitPct)
+      ? (Number(amount) * avgExpectedProfitPct) / 100
+      : 0;
+  const estimatedReturnAmount =
+    Number.isFinite(Number(amount)) && Number(amount) > 0
+      ? Number(amount) + estimatedProfitAmount
+      : 0;
+  const investorsJoined = minimumInvestmentNum > 0
+    ? Math.max(0, Math.floor(currentFundingCollectedNum / minimumInvestmentNum))
+    : 0;
+  const timelineStages = [
+    "land-purchased",
+    "gray-structure-completed",
+    "finishing-work",
+    "ready-for-sale",
+    "sold",
+  ];
+  const currentStageIndex = timelineStages.indexOf(String(property?.constructionStatus || ""));
 
   return (
     <>
@@ -200,274 +340,222 @@ export default function PropertyDetailsPage() {
       </Head>
 
       <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
-                  Property Details
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          {error ? (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+          {loading ? (
+            <div className="mb-6 rounded-xl border border-hive-taupe/20 bg-hive-light p-3 text-sm text-hive-slate">
+              Loading property...
+            </div>
+          ) : null}
+
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_360px]">
+            <div className="space-y-6">
+              <div className="relative isolate overflow-hidden rounded-2xl border border-hive-taupe/20 bg-zinc-100">
+                <div className="relative h-72 w-full sm:h-96">
+                  {String(activeImage).startsWith("/api/") || String(activeImage).startsWith("data:") ? (
+                    <img
+                      src={activeImage}
+                      alt={`${property?.title ?? "Property"} image`}
+                      className="absolute inset-0 z-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Image
+                      src={activeImage}
+                      alt={`${property?.title ?? "Property"} image`}
+                      fill
+                      className="z-0 object-cover"
+                      sizes="(max-width: 1024px) 100vw, 70vw"
+                    />
+                  )}
+                </div>
+                {property?.featuredProperty ? (
+                  <div className="absolute right-4 top-4 rounded-full bg-hive-taupe px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-hive-charcoal">
+                    Featured Property
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h1 className="text-2xl font-semibold tracking-tight text-hive-charcoal sm:text-4xl">{property?.title}</h1>
+                <p className="mt-2 text-sm text-hive-slate">{property?.location}</p>
+                <p className="mt-2 text-sm text-hive-slate">
+                  {humanizeKebab(property?.type)} • {formatRiskLevel(property?.riskLevel)} Risk • {humanizeKebab(property?.constructionStatus)}
                 </p>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <h1 className="text-2xl font-semibold tracking-tight text-hive-charcoal sm:text-4xl">
-                    {property?.title}
-                  </h1>
-                  <StatusBadge status={formatStatus(property?.status)} />
+              </div>
+
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Property Overview</h2>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-[220px_1fr]">
+                  <p className="font-semibold text-hive-charcoal">Type</p><p className="text-hive-slate">{humanizeKebab(property?.type)}</p>
+                  <p className="font-semibold text-hive-charcoal">City</p><p className="text-hive-slate">{property?.location || "N/A"}</p>
+                  <p className="font-semibold text-hive-charcoal">Address</p><p className="text-hive-slate">{property?.fullAddress || "N/A"}</p>
+                  <p className="font-semibold text-hive-charcoal">Construction Status</p><p className="text-hive-slate">{humanizeKebab(property?.constructionStatus)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Financial Information</h2>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-[220px_1fr]">
+                  <p className="font-semibold text-hive-charcoal">Total Cost</p><p className="text-hive-slate">{formatPlainCurrency(totalCostNum)}</p>
+                  <p className="font-semibold text-hive-charcoal">Investor Funding</p><p className="text-hive-slate">{formatPlainCurrency(investorContributionNum)}</p>
+                  <p className="font-semibold text-hive-charcoal">Hive Contribution</p><p className="text-hive-slate">{formatPlainCurrency(hiveContributionNum)}</p>
+                  <p className="font-semibold text-hive-charcoal">Expected ROI</p><p className="text-hive-slate">{formatExpectedProfit(property?.expectedProfitMinPct, property?.expectedProfitMaxPct)}</p>
+                  <p className="font-semibold text-hive-charcoal">Minimum Investment</p><p className="text-hive-slate">{formatPlainCurrency(minimumInvestmentNum)}</p>
+                  <p className="font-semibold text-hive-charcoal">Expected Duration</p><p className="text-hive-slate">{property?.expectedCompletionDurationMonths || 0} months</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Funding Progress</h2>
+                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-zinc-200">
+                  <div className="h-full rounded-full bg-hive-taupe" style={{ width: `${fundingProgressNum}%` }} />
                 </div>
                 <p className="mt-3 text-sm text-hive-slate">
-                  {property?.location} • Residential
+                  {formatPlainCurrency(currentFundingCollectedNum)} raised out of {formatPlainCurrency(investorContributionNum)}
                 </p>
+                <p className="mt-1 text-sm text-hive-slate">Investors Joined: {investorsJoined}</p>
               </div>
-              <Link
-                href="/properties"
-                className="inline-flex rounded-md border border-hive-charcoal px-4 py-2 text-sm font-semibold text-hive-charcoal transition-colors hover:border-hive-taupe hover:text-hive-taupe"
-              >
-                Back to Properties
-              </Link>
-            </div>
 
-            <div className="rounded-3xl border border-hive-taupe/20 bg-hive-light p-6">
-              {error ? (
-                <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {error}
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Investment Calculator</h2>
+                <label className="mt-3 block text-sm font-semibold text-hive-charcoal">Enter Investment Amount</label>
+                <input
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
+                  placeholder="100000"
+                  inputMode="numeric"
+                />
+                <div className="mt-4 grid gap-2 text-sm sm:grid-cols-[220px_1fr]">
+                  <p className="font-semibold text-hive-charcoal">Estimated Ownership Share</p><p className="text-hive-slate">{estimatedSharePct.toFixed(2)}%</p>
+                  <p className="font-semibold text-hive-charcoal">Estimated Profit</p><p className="text-hive-slate">{formatPlainCurrency(estimatedProfitAmount)}</p>
+                  <p className="font-semibold text-hive-charcoal">Estimated Return</p><p className="text-hive-slate">{formatPlainCurrency(estimatedReturnAmount)}</p>
                 </div>
-              ) : null}
+              </div>
 
-              {loading ? (
-                <div className="mb-6 rounded-xl border border-hive-taupe/20 bg-hive-light p-3 text-sm text-hive-slate">
-                  Loading property...
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Property Description</h2>
+                <p className="mt-3 text-sm leading-7 text-hive-slate">{property?.description || "No description provided yet."}</p>
+              </div>
+
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Property Features</h2>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-[220px_1fr]">
+                  <p className="font-semibold text-hive-charcoal">Bedrooms</p><p className="text-hive-slate">{Number(property?.bedrooms || 0)}</p>
+                  <p className="font-semibold text-hive-charcoal">Bathrooms</p><p className="text-hive-slate">{Number(property?.bathrooms || 0)}</p>
+                  <p className="font-semibold text-hive-charcoal">Area Size</p><p className="text-hive-slate">{Number(property?.areaSize || 0)} sq.ft</p>
+                  <p className="font-semibold text-hive-charcoal">Garage</p><p className="text-hive-slate">{Number(property?.garage || 0)}</p>
+                  <p className="font-semibold text-hive-charcoal">Floors</p><p className="text-hive-slate">{Number(property?.floorCount || 0)}</p>
                 </div>
-              ) : null}
+              </div>
 
-              <div className="grid gap-8 lg:grid-cols-3">
-                <div className="lg:col-span-2">
-                  <div className="grid gap-4">
-                    <div className="relative isolate overflow-hidden rounded-2xl bg-zinc-100">
-                      <div className="relative h-64 w-full sm:h-80">
-                        {String(activeImage).startsWith("/api/") ||
-                        String(activeImage).startsWith("data:") ? (
-                          <img
-                            src={activeImage}
-                            alt={`${property?.title ?? "Property"} image`}
-                            className="absolute inset-0 z-0 h-full w-full object-cover"
-                          />
-                        ) : (
-                          <Image
-                            src={activeImage}
-                            alt={`${property?.title ?? "Property"} image`}
-                            fill
-                            className="z-0 object-cover"
-                            sizes="(max-width: 1024px) 100vw, 66vw"
-                          />
-                        )}
-                      </div>
-                    </div>
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Nearby Facilities</h2>
+                <ul className="mt-3 space-y-2 text-sm text-hive-slate">
+                  <li>{property?.nearbySchool ? "✔" : "✖"} School</li>
+                  <li>{property?.nearbyHospital ? "✔" : "✖"} Hospital</li>
+                  <li>{property?.nearbyMarket ? "✔" : "✖"} Market</li>
+                  <li>{property?.nearbyMosque ? "✔" : "✖"} Mosque</li>
+                </ul>
+              </div>
 
-                    <div className="grid grid-cols-4 gap-3">
-                      {(galleryIndexes ?? []).map((idx) => {
-                        const src = thumbSrc(idx);
-                        const isActive = idx === activeIndex;
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Construction Timeline</h2>
+                <ul className="mt-3 space-y-2 text-sm text-hive-slate">
+                  {timelineStages.map((stage, idx) => (
+                    <li key={stage}>
+                      {(currentStageIndex >= idx && currentStageIndex !== -1) ? "✔" : "⏳"} {humanizeKebab(stage)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setActiveIndex(idx)}
-                            className={
-                              "relative overflow-hidden rounded-xl border transition-colors " +
-                              (isActive
-                                ? "border-hive-taupe"
-                                : "border-hive-taupe/20 hover:border-hive-taupe/60")
-                            }
-                            aria-label={`View image ${idx + 1}`}
-                          >
-                            <div className="relative h-16 w-full overflow-hidden bg-zinc-100">
-                              <img
-                                src={src}
-                                alt={`Property image ${idx + 1}`}
-                                className="absolute inset-0 z-0 h-full w-full object-cover"
-                              />
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Exit &amp; Security Rules</h2>
+                <ul className="mt-3 space-y-2 text-sm text-hive-slate">
+                  <li>✔ Investor Protection Enabled: {formatYesNo(property?.investorProtectionEnabled !== false)}</li>
+                  <li>✔ Early Withdrawal Allowed: {formatYesNo(property?.earlyWithdrawalAllowed !== false)}</li>
+                  <li>✔ Early Withdrawal Profit: {formatEarlyWithdrawalProfitRule(property?.earlyWithdrawalProfitRule)}</li>
+                  <li>✔ Original Investment Protection</li>
+                </ul>
+              </div>
 
-                  <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                    <InfoCard
-                      label="Total property cost"
-                      value={formatCurrency(property?.totalCost)}
-                      subtext="Estimated market value for investor reference."
-                    />
-                    <InfoCard
-                      label="Profit sharing"
-                      value="75% Investors / 25% Hive"
-                      subtext="Profit distributed after sale settlement."
-                    />
-                    <InfoCard
-                      label="Status"
-                      value={formatStatus(property?.status)}
-                      subtext="Read-only public project status."
-                    />
-                  </div>
-
-                  <div className="mt-8 grid gap-6 lg:grid-cols-2">
-                    <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                      <h2 className="text-base font-semibold text-hive-charcoal">
-                        Property Overview
-                      </h2>
-                      <p className="mt-3 text-sm leading-6 text-hive-slate">
-                        This property listing is provided for informational purposes.
-                      </p>
-                      <div className="mt-4 space-y-2 text-sm text-hive-slate">
-                        <p>
-                          <span className="font-semibold text-hive-charcoal">
-                            Location:
-                          </span>{" "}
-                          {property?.location}
-                        </p>
-                        <p>
-                          <span className="font-semibold text-hive-charcoal">
-                            Type:
-                          </span>{" "}
-                          Residential
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                      <h2 className="text-base font-semibold text-hive-charcoal">
-                        Investment Information
-                      </h2>
-                      <div className="mt-3 space-y-3 text-sm leading-6 text-hive-slate">
-                        <p>
-                          <span className="font-semibold text-hive-charcoal">
-                            Investor contribution:
-                          </span>{" "}
-                          Contact Hive for contribution options.
-                        </p>
-                        <p>
-                          <span className="font-semibold text-hive-charcoal">
-                            Hive’s contribution:
-                          </span>{" "}
-                          Based on project financing plan.
-                        </p>
-                        <div className="rounded-xl bg-hive-charcoal p-4 text-hive-light">
-                          <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
-                            Profit-sharing ratio
-                          </p>
-                          <p className="mt-2 text-sm text-hive-light/80">
-                            75% Investors • 25% Hive
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-8 grid gap-6 lg:grid-cols-2">
-                    <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                      <h2 className="text-base font-semibold text-hive-charcoal">
-                        Construction & Sale Status
-                      </h2>
-                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                        <InfoCard
-                          label="Construction stage"
-                          value={property?.constructionStage}
-                        />
-                        <InfoCard
-                          label="Estimated completion"
-                          value={property?.estimatedCompletion}
-                        />
-                        <InfoCard label="Sale status" value={property?.saleStatus} />
-                        <InfoCard
-                          label="Tracking"
-                          value="Read-only"
-                          subtext="Real-time tracking is shown when enabled for investors."
-                        />
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                      <h2 className="text-base font-semibold text-hive-charcoal">
-                        Exit Plan Summary
-                      </h2>
-                      <ul className="mt-4 space-y-2 text-sm leading-6 text-hive-slate">
-                        <li>
-                          <span className="font-semibold text-hive-charcoal">
-                            Sale before one year:
-                          </span>{" "}
-                          Settlement handled per documented sale timeline.
-                        </li>
-                        <li>
-                          <span className="font-semibold text-hive-charcoal">
-                            Sale after one year:
-                          </span>{" "}
-                          Settlement handled per documented sale timeline.
-                        </li>
-                        <li>
-                          <span className="font-semibold text-hive-charcoal">
-                            Early withdrawal:
-                          </span>{" "}
-                          Subject to conditions, project status, and written terms.
-                        </li>
-                        <li>
-                          <span className="font-semibold text-hive-charcoal">
-                            Loss protection:
-                          </span>{" "}
-                          Original investment is protected under agreed security terms.
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Profit Distribution</h2>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-[220px_1fr]">
+                  <p className="font-semibold text-hive-charcoal">Investors Share</p><p className="text-hive-slate">{Number(property?.investorProfitSharePct ?? 75)}%</p>
+                  <p className="font-semibold text-hive-charcoal">Hive Share</p><p className="text-hive-slate">{Number(property?.hiveProfitSharePct ?? 25)}%</p>
                 </div>
+              </div>
 
-                <aside className="rounded-2xl bg-hive-charcoal p-6 text-hive-light">
-                  <p className="text-sm font-semibold text-hive-taupe">
-                    Next steps
-                  </p>
-                  <p className="mt-3 text-sm leading-6 text-hive-light/80">
-                    This is a read-only property page. To proceed, choose an
-                    investor action below.
-                  </p>
-
-                  <div className="mt-6 space-y-3">
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
+                <h2 className="text-base font-semibold text-hive-charcoal">Property Gallery</h2>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {(galleryIndexes ?? []).map((idx) => (
                     <button
+                      key={idx}
                       type="button"
-                      disabled={checkingAuth}
-                      onClick={() => {
-                        if (isLoggedIn) {
-                          setInvestError("");
-                          setInvestSuccess("");
-                          setShowInvestModal(true);
-                        } else {
-                          goToLoginToInvest();
-                        }
-                      }}
-                      className="inline-flex w-full items-center justify-center rounded-md bg-hive-taupe px-4 py-2.5 text-sm font-semibold text-hive-charcoal transition-colors hover:bg-hive-light"
+                      onClick={() => setActiveIndex(idx)}
+                      className="relative h-20 overflow-hidden rounded-xl border border-hive-taupe/20"
                     >
-                      Invest
+                      <img src={thumbSrc(idx)} alt={`Property image ${idx + 1}`} className="absolute inset-0 h-full w-full object-cover" />
                     </button>
-
-                    <Link
-                      href="/properties"
-                      className="inline-flex w-full items-center justify-center rounded-md border border-hive-taupe px-4 py-2.5 text-sm font-semibold text-hive-light transition-colors hover:text-hive-taupe"
-                    >
-                      Back to Properties
-                    </Link>
-                  </div>
-
-                  <div className="mt-8 rounded-xl bg-hive-slate p-4">
-                    <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
-                      Investor note
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-hive-light/80">
-                      Investment details shown here are informational. Final terms
-                      are defined by written documentation and project agreements.
-                    </p>
-                  </div>
-                </aside>
+                  ))}
+                </div>
               </div>
             </div>
+
+            <aside className="lg:sticky lg:top-24 lg:h-fit">
+              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-charcoal p-6 text-hive-light">
+                <h3 className="text-sm font-semibold uppercase tracking-widest text-hive-taupe">Start Investment</h3>
+                <p className="mt-3 text-sm text-hive-light/80">
+                  Minimum Investment: <span className="font-semibold text-hive-light">{formatPlainCurrency(minimumInvestmentNum)}</span>
+                </p>
+                <label className="mt-4 block text-sm font-semibold text-hive-light">Enter Amount</label>
+                <input
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="mt-2 w-full rounded-md border border-hive-taupe/30 bg-hive-slate px-3 py-2 text-sm text-hive-light outline-none focus:border-hive-taupe"
+                  placeholder="100000"
+                  inputMode="numeric"
+                />
+                <label className="mt-4 block text-sm font-semibold text-hive-light">Upload Payment Proof</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setPaymentScreenshot(e.target.files?.[0] || null)}
+                  className="mt-2 w-full rounded-md border border-hive-taupe/30 bg-hive-slate px-3 py-2 text-sm text-hive-light"
+                />
+                {paymentScreenshot ? (
+                  <p className="mt-1 text-xs text-hive-light/70">Selected: {paymentScreenshot.name}</p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={checkingAuth || !canInvest}
+                  onClick={() => {
+                    if (!canInvest) return;
+                    if (!isLoggedIn) {
+                      goToLoginToInvest();
+                      return;
+                    }
+                    setShowInvestModal(true);
+                  }}
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-md bg-hive-taupe px-4 py-2.5 text-sm font-semibold text-hive-charcoal transition-colors hover:bg-hive-light disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Invest Now
+                </button>
+                <Link
+                  href="/properties"
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-md border border-hive-taupe px-4 py-2.5 text-sm font-semibold text-hive-light transition-colors hover:text-hive-taupe"
+                >
+                  Back to Properties
+                </Link>
+              </div>
+            </aside>
           </div>
         </div>
       </section>
@@ -499,17 +587,14 @@ export default function PropertyDetailsPage() {
             <form onSubmit={onInvest} className="mt-6 grid gap-4">
               <div className="grid gap-2">
                 <div className="rounded-xl border border-hive-taupe/20 bg-hive-light p-3 text-sm text-hive-slate">
-                  <div>
-                    Property ID: <span className="font-semibold text-hive-charcoal">{property?.id}</span>
-                  </div>
-                  <div className="mt-1">
-                    Status: <span className="font-semibold text-hive-charcoal">{formatStatus(property?.status)}</span>
+                  <div className="font-semibold text-hive-charcoal">
+                    Available Funding Needed: {formatPlainCurrency(availableFundingNeeded)}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-hive-charcoal">Amount</label>
+                <label className="text-sm font-semibold text-hive-charcoal">Enter Investment Amount</label>
                 <input
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -517,6 +602,70 @@ export default function PropertyDetailsPage() {
                   placeholder="100000"
                   inputMode="numeric"
                 />
+              </div>
+
+              <fieldset className="rounded-xl border border-hive-taupe/20 p-4">
+                <legend className="px-1 text-sm font-semibold text-hive-charcoal">Payment Method</legend>
+                <div className="mt-2 grid gap-2 text-sm text-hive-slate">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="bank-transfer"
+                      checked={paymentMethod === "bank-transfer"}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    />
+                    Bank Transfer
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="easypaisa"
+                      checked={paymentMethod === "easypaisa"}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    />
+                    EasyPaisa
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="jazzcash"
+                      checked={paymentMethod === "jazzcash"}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    />
+                    JazzCash
+                  </label>
+                </div>
+              </fieldset>
+
+              <div>
+                <label className="text-sm font-semibold text-hive-charcoal">Upload Payment Screenshot</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setPaymentScreenshot(e.target.files?.[0] || null)}
+                  className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal"
+                />
+                {paymentScreenshot ? (
+                  <p className="mt-1 text-xs text-hive-slate">Selected: {paymentScreenshot.name}</p>
+                ) : null}
+              </div>
+
+              <div className="rounded-xl border border-hive-taupe/20 bg-hive-light p-4 text-sm text-hive-slate">
+                <p>
+                  Your Estimated Share:{" "}
+                  <span className="font-semibold text-hive-charcoal">
+                    {estimatedSharePct > 0 ? `${estimatedSharePct.toFixed(2)}%` : "0%"}
+                  </span>
+                </p>
+                <p className="mt-1">
+                  Estimated Profit:{" "}
+                  <span className="font-semibold text-hive-charcoal">
+                    {formatPlainCurrency(estimatedProfitAmount)}
+                  </span>
+                </p>
               </div>
 
               {investSuccess ? (
@@ -550,7 +699,7 @@ export default function PropertyDetailsPage() {
                     (investSubmitting ? "opacity-70" : "")
                   }
                 >
-                  {investSubmitting ? "Submitting..." : "Invest"}
+                  {investSubmitting ? "Submitting..." : "Confirm Investment"}
                 </button>
               </div>
             </form>

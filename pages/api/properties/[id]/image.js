@@ -20,12 +20,14 @@ export default async function handler(req, res) {
   try {
     await dbConnect();
 
-    const p = await Property.findById(String(id)).select("images");
+    const p = await Property.findById(String(id)).select("thumbnail galleryImages");
     if (!p) {
       return res.status(404).json({ message: "Property not found" });
     }
 
-    const images = Array.isArray(p.images) ? p.images : [];
+    const images = [p.thumbnail, ...(Array.isArray(p.galleryImages) ? p.galleryImages : [])].filter(
+      Boolean
+    );
     const img = images[idx];
     if (!img || !img.data) {
       return res.status(404).json({ message: "Image not found" });

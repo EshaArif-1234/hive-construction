@@ -2,7 +2,35 @@ import dbConnect from "@/lib/dbConnect";
 import { requireAdmin } from "@/lib/adminSession";
 import Property from "@/models/Property";
 import { destroyCloudinaryAsset } from "@/lib/cloudinary";
-import { serializePropertyImages } from "@/lib/propertyImages";
+
+function parseBooleanLike(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (v === "true" || v === "yes" || v === "1") return true;
+    if (v === "false" || v === "no" || v === "0") return false;
+  }
+  return fallback;
+}
+
+function derivePublicStatus(listingStatus, constructionStatus) {
+  if (
+    listingStatus === "completed" ||
+    constructionStatus === "sold" ||
+    constructionStatus === "completed"
+  ) {
+    return "sold";
+  }
+  if (
+    listingStatus === "active" &&
+    ["under-construction", "gray-structure-completed", "finishing-work"].includes(
+      constructionStatus
+    )
+  ) {
+    return "in-progress";
+  }
+  return "available";
+}
 
 export default async function handler(req, res) {
   const payload = requireAdmin(req, res);
@@ -47,44 +75,92 @@ export default async function handler(req, res) {
 
   const {
     title,
-    location,
+    type,
+    city,
+    address,
+    description,
     totalCost,
-    constructionCost,
-    landCost,
-    status,
-    expectedSalePrice,
+    hiveContribution,
+    investorFundingRequired,
+    expectedSellingPrice,
+    expectedProfitPercentage,
+    minimumInvestment,
+    investorProfitShare,
+    hiveProfitShare,
+    constructionStatus,
+    expectedCompletionDuration,
+    expectedSellingDuration,
+    investorProtectionEnabled,
+    earlyWithdrawalAllowed,
+    earlyWithdrawalProfit,
+    listingStatus,
+    featured,
+    fundingCollected,
+    createdBy,
   } = req.body ?? {};
 
   const t = String(title ?? "").trim();
-  const loc = String(location ?? "").trim();
+  const loc = String(city ?? "").trim();
 
   if (!t || !loc) {
-    return res.status(400).json({ message: "title and location are required" });
+    return res.status(400).json({ message: "title and city are required" });
   }
 
   const totalCostNum = Number(totalCost);
-  const constructionCostNum = Number(constructionCost);
-  const landCostNum = Number(landCost);
-  const expectedSalePriceNum = Number(expectedSalePrice);
+  const expectedSellingPriceNum = Number(expectedSellingPrice);
+  const hiveContributionNum = Number(hiveContribution);
+  const investorFundingRequiredNum = Number(investorFundingRequired);
+  const expectedProfitPercentageNum = Number(expectedProfitPercentage);
+  const minimumInvestmentNum = Number(minimumInvestment);
+  const investorProfitShareNum = Number(investorProfitShare);
+  const hiveProfitShareNum = Number(hiveProfitShare);
+  const expectedCompletionDurationNum = Number(expectedCompletionDuration);
+  const expectedSellingDurationNum = Number(expectedSellingDuration);
+  const fundingCollectedNum = Number(fundingCollected);
 
   if (
     !Number.isFinite(totalCostNum) ||
-    !Number.isFinite(constructionCostNum) ||
-    !Number.isFinite(landCostNum) ||
-    !Number.isFinite(expectedSalePriceNum)
+    !Number.isFinite(expectedSellingPriceNum) ||
+    !Number.isFinite(hiveContributionNum) ||
+    !Number.isFinite(investorFundingRequiredNum) ||
+    !Number.isFinite(expectedProfitPercentageNum) ||
+    !Number.isFinite(minimumInvestmentNum) ||
+    !Number.isFinite(investorProfitShareNum) ||
+    !Number.isFinite(hiveProfitShareNum) ||
+    !Number.isFinite(expectedCompletionDurationNum) ||
+    !Number.isFinite(expectedSellingDurationNum) ||
+    !Number.isFinite(fundingCollectedNum)
   ) {
     return res.status(400).json({
-      message:
-        "totalCost, constructionCost, landCost, and expectedSalePrice must be valid numbers",
+      message: "All numeric fields must contain valid numeric values",
     });
   }
 
-  const normalizedStatus = String(status || "available").toLowerCase();
-  const allowed = ["available", "sold", "in-progress"];
-  const finalStatus = allowed.includes(normalizedStatus)
-    ? normalizedStatus
-    : "available";
+  if (Math.round(investorProfitShareNum + hiveProfitShareNum) !== 100) {
+    return res.status(400).json({
+      message: "investorProfitShare and hiveProfitShare must total 100",
+    });
+  }
 
+  const normalizedListingStatus = String(listingStatus || "active").toLowerCase();
+  const allowedListingStatuses = ["draft", "active", "paused", "completed", "archived"];
+  const finalListingStatus = allowedListingStatuses.includes(normalizedListingStatus)
+    ? normalizedListingStatus
+    : "draft";
+  const normalizedConstructionStatus = String(constructionStatus || "not-started").toLowerCase();
+  const allowedConstructionStatuses = [
+    "not-started",
+    "land-purchased",
+    "under-construction",
+    "gray-structure-completed",
+    "finishing-work",
+    "ready-for-sale",
+    "sold",
+    "completed",
+  ];
+  const finalConstructionStatus = allowedConstructionStatuses.includes(normalizedConstructionStatus)
+    ? normalizedConstructionStatus
+    : "not-started";
   try {
     await dbConnect();
 
@@ -92,17 +168,33 @@ export default async function handler(req, res) {
       id,
       {
         title: t,
-        location: loc,
+        type: String(type || "house").trim().toLowerCase(),
+        city: loc,
+        address: String(address || "").trim(),
+        description: String(description || "").trim(),
         totalCost: totalCostNum,
-        constructionCost: constructionCostNum,
-        landCost: landCostNum,
-        status: finalStatus,
-        expectedSalePrice: expectedSalePriceNum,
+        expectedSellingPrice: expectedSellingPriceNum,
+        hiveContribution: hiveContributionNum,
+        investorFundingRequired: investorFundingRequiredNum,
+        expectedProfitPercentage: expectedProfitPercentageNum,
+        minimumInvestment: minimumInvestmentNum,
+        investorProfitShare: investorProfitShareNum,
+        hiveProfitShare: hiveProfitShareNum,
+        constructionStatus: finalConstructionStatus,
+        expectedCompletionDuration: expectedCompletionDurationNum,
+        expectedSellingDuration: expectedSellingDurationNum,
+        investorProtectionEnabled: parseBooleanLike(investorProtectionEnabled, true),
+        earlyWithdrawalAllowed: parseBooleanLike(earlyWithdrawalAllowed, true),
+        earlyWithdrawalProfit: String(earlyWithdrawalProfit || "no-profit").toLowerCase(),
+        listingStatus: finalListingStatus,
+        featured: parseBooleanLike(featured, false),
+        fundingCollected: fundingCollectedNum,
+        createdBy: String(createdBy || "").trim(),
       },
       { new: true }
     )
       .select(
-        "title location totalCost constructionCost landCost status expectedSalePrice createdAt images"
+        "title type city address description totalCost hiveContribution investorFundingRequired expectedSellingPrice expectedProfitPercentage minimumInvestment investorProfitShare hiveProfitShare constructionStatus expectedCompletionDuration expectedSellingDuration investorProtectionEnabled earlyWithdrawalAllowed earlyWithdrawalProfit thumbnail galleryImages listingStatus featured fundingCollected createdBy createdAt"
       )
       .lean();
 
@@ -110,22 +202,36 @@ export default async function handler(req, res) {
       return res.status(404).json({ message: "Property not found" });
     }
 
-    const img = serializePropertyImages(updated);
-
     return res.status(200).json({
       message: "Property updated",
       property: {
         id: String(updated._id),
         title: updated.title,
-        location: updated.location,
+        type: updated.type,
+        city: updated.city,
+        address: updated.address,
+        description: updated.description,
         totalCost: updated.totalCost,
-        constructionCost: updated.constructionCost,
-        landCost: updated.landCost,
-        status: updated.status,
-        expectedSalePrice: updated.expectedSalePrice,
+        expectedSellingPrice: updated.expectedSellingPrice,
+        hiveContribution: updated.hiveContribution,
+        investorFundingRequired: updated.investorFundingRequired,
+        expectedProfitPercentage: updated.expectedProfitPercentage,
+        minimumInvestment: updated.minimumInvestment,
+        investorProfitShare: updated.investorProfitShare,
+        hiveProfitShare: updated.hiveProfitShare,
+        constructionStatus: updated.constructionStatus,
+        expectedCompletionDuration: updated.expectedCompletionDuration,
+        expectedSellingDuration: updated.expectedSellingDuration,
+        investorProtectionEnabled: updated.investorProtectionEnabled,
+        earlyWithdrawalAllowed: updated.earlyWithdrawalAllowed,
+        earlyWithdrawalProfit: updated.earlyWithdrawalProfit,
+        listingStatus: updated.listingStatus,
+        featured: updated.featured,
+        fundingCollected: updated.fundingCollected,
+        createdBy: updated.createdBy,
+        thumbnail: updated.thumbnail || {},
+        galleryImages: Array.isArray(updated.galleryImages) ? updated.galleryImages : [],
         createdAt: updated.createdAt,
-        imagesCount: img.imagesCount,
-        coverImage: img.coverImage,
       },
     });
   } catch {

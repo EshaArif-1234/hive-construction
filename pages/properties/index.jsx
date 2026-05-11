@@ -5,16 +5,19 @@ import PropertyCard from "@/components/PropertyCard";
 import WebsiteFooter from "@/components/WebsiteFooter";
 
 function formatStatus(status) {
-  if (status === "available") return "Available";
-  if (status === "in-progress") return "In Progress";
-  if (status === "sold") return "Sold";
-  return "Available";
+  const value = String(status || "").toLowerCase();
+  if (value === "draft") return "Draft";
+  if (value === "active") return "Active";
+  if (value === "paused") return "Paused";
+  if (value === "completed") return "Completed";
+  if (value === "archived") return "Archived";
+  return "Draft";
 }
 
-function formatCurrency(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "";
-  return `PKR ${n.toLocaleString()} (Est.)`;
+function normalizeRisk(level) {
+  const value = String(level || "").toLowerCase();
+  if (["low", "medium", "high"].includes(value)) return value;
+  return "medium";
 }
 
 function parsePriceRange(range) {
@@ -49,7 +52,28 @@ export default function PropertiesPage() {
           return;
         }
         if (!cancelled) {
-          setProperties(Array.isArray(data?.properties) ? data.properties : []);
+          const list = Array.isArray(data?.properties) ? data.properties : [];
+          setProperties(
+            list.map((p) => {
+              const required = Number(p?.investorFundingRequired || 0);
+              const collected = Number(p?.fundingCollected || 0);
+              const progress =
+                required > 0 ? Math.min(100, Math.max(0, (collected / required) * 100)) : 0;
+              return {
+                ...p,
+                location: p.city || "",
+                expectedProfitMinPct: p.expectedProfitPercentage,
+                expectedProfitMaxPct: p.expectedProfitPercentage,
+                fundingProgressPct: progress,
+                status: p.listingStatus,
+                expectedSalePrice: p.expectedSellingPrice,
+                riskLevel: normalizeRisk(p.riskLevel),
+                bedrooms: p.bedrooms ?? 0,
+                bathrooms: p.bathrooms ?? 0,
+                areaSize: p.areaSize ?? 0,
+              };
+            })
+          );
         }
       } catch (e) {
         if (!cancelled) {
@@ -172,9 +196,11 @@ export default function PropertiesPage() {
                   className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-4 py-2.5 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
                 >
                   <option value="all">All</option>
-                  <option value="Available">Available</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Sold">Sold</option>
+                  <option value="Draft">Draft</option>
+                  <option value="Active">Active</option>
+                  <option value="Paused">Paused</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Archived">Archived</option>
                 </select>
               </div>
             </div>
@@ -231,13 +257,23 @@ export default function PropertiesPage() {
                       id={p.id}
                       title={p.title}
                       location={p.location}
-                      price={formatCurrency(p.expectedSalePrice)}
-                      status={formatStatus(p.status)}
+                      totalCost={p.totalCost}
+                      expectedProfitMinPct={p.expectedProfitMinPct}
+                      expectedProfitMaxPct={p.expectedProfitMaxPct}
+                      fundingProgressPct={p.fundingProgressPct}
+                      propertyType={p.type}
+                      riskLevel={p.riskLevel}
+                      investorFundingRequired={p.investorFundingRequired}
+                      minimumInvestment={p.minimumInvestment}
+                      fundingCollected={p.fundingCollected}
+                      featured={p.featured}
+                      bedrooms={p.bedrooms}
+                      bathrooms={p.bathrooms}
+                      areaSize={p.areaSize}
+                      constructionStatus={p.constructionStatus}
                       imageSrc={
-                        p.coverImage ||
-                        (p.imagesCount && p.imagesCount > 0
-                          ? `/api/properties/${p.id}/image?index=0`
-                          : "")
+                        p?.thumbnail?.url ||
+                        ((Array.isArray(p?.galleryImages) && p.galleryImages[0]?.url) ? p.galleryImages[0].url : "")
                       }
                       imageLabel="Property Image"
                     />

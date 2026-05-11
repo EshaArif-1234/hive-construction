@@ -1,6 +1,5 @@
 import dbConnect from "@/lib/dbConnect";
 import Property from "@/models/Property";
-import { serializePropertyImages } from "@/lib/propertyImages";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -14,25 +13,40 @@ export default async function handler(req, res) {
     const properties = await Property.find({})
       .sort({ createdAt: -1 })
       .select(
-        "title location totalCost constructionCost landCost status expectedSalePrice createdAt images"
+        "title type city address description totalCost hiveContribution investorFundingRequired expectedSellingPrice expectedProfitPercentage minimumInvestment investorProfitShare hiveProfitShare constructionStatus expectedCompletionDuration expectedSellingDuration investorProtectionEnabled earlyWithdrawalAllowed earlyWithdrawalProfit thumbnail galleryImages listingStatus featured fundingCollected createdBy createdAt"
       )
       .lean();
 
     return res.status(200).json({
       properties: properties.map((p) => {
-        const img = serializePropertyImages(p);
         return {
           id: String(p._id),
           title: p.title,
-          location: p.location,
+          type: p.type,
+          city: p.city,
+          address: p.address,
+          description: p.description,
           totalCost: p.totalCost,
-          constructionCost: p.constructionCost,
-          landCost: p.landCost,
-          status: p.status,
-          expectedSalePrice: p.expectedSalePrice,
+          hiveContribution: p.hiveContribution,
+          investorFundingRequired: p.investorFundingRequired,
+          expectedSellingPrice: p.expectedSellingPrice,
+          expectedProfitPercentage: p.expectedProfitPercentage,
+          minimumInvestment: p.minimumInvestment,
+          investorProfitShare: p.investorProfitShare,
+          hiveProfitShare: p.hiveProfitShare,
+          constructionStatus: p.constructionStatus,
+          expectedCompletionDuration: p.expectedCompletionDuration,
+          expectedSellingDuration: p.expectedSellingDuration,
+          investorProtectionEnabled: p.investorProtectionEnabled,
+          earlyWithdrawalAllowed: p.earlyWithdrawalAllowed,
+          earlyWithdrawalProfit: p.earlyWithdrawalProfit,
+          listingStatus: p.listingStatus,
+          featured: p.featured,
+          fundingCollected: p.fundingCollected,
+          createdBy: p.createdBy,
+          thumbnail: p.thumbnail || {},
+          galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
           createdAt: p.createdAt,
-          imagesCount: img.imagesCount,
-          coverImage: img.coverImage,
         };
       }),
     });

@@ -2,32 +2,14 @@ import Head from "next/head";
 import { useEffect, useMemo, useRef, useState } from "react";
 import StatusBadge from "@/components/StatusBadge";
 
-function PhotoUploadIllustration() {
-  return (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-hive-taupe/30 bg-gradient-to-br from-hive-charcoal to-neutral-900 shadow-inner ring-1 ring-white/10">
-      <svg
-        className="h-8 w-8 text-hive-taupe"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.25}
-        aria-hidden
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z"
-        />
-      </svg>
-    </div>
-  );
-}
-
 function formatStatus(status) {
-  if (status === "available") return "Available";
-  if (status === "in-progress") return "In Progress";
-  if (status === "sold") return "Sold";
-  return "Available";
+  const value = String(status || "").toLowerCase();
+  if (value === "draft") return "Draft";
+  if (value === "active") return "Active";
+  if (value === "paused") return "Paused";
+  if (value === "completed") return "Completed";
+  if (value === "archived") return "Archived";
+  return "Draft";
 }
 
 function formatCurrency(value) {
@@ -37,6 +19,14 @@ function formatCurrency(value) {
 }
 
 export default function AdminPropertiesPage() {
+  const normalizeListingStatus = (value) => {
+    const v = String(value || "").toLowerCase();
+    if (v === "sold") return "completed";
+    if (v === "inactive") return "paused";
+    if (["draft", "active", "paused", "completed", "archived"].includes(v)) return v;
+    return "draft";
+  };
+
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
 
@@ -45,6 +35,7 @@ export default function AdminPropertiesPage() {
   const [error, setError] = useState("");
 
   const [showModal, setShowModal] = useState(false);
+  const [modalTab, setModalTab] = useState("basic");
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState("");
 
@@ -52,21 +43,50 @@ export default function AdminPropertiesPage() {
   const [editingId, setEditingId] = useState("");
 
   const [title, setTitle] = useState("");
+  const [propertyType, setPropertyType] = useState("house");
   const [location, setLocation] = useState("");
+  const [fullAddress, setFullAddress] = useState("");
+  const [description, setDescription] = useState("");
   const [totalCost, setTotalCost] = useState("");
-  const [constructionCost, setConstructionCost] = useState("");
-  const [landCost, setLandCost] = useState("");
+  const [requiredInvestorFunding, setRequiredInvestorFunding] = useState("");
+  const [minimumInvestmentAllowed, setMinimumInvestmentAllowed] = useState("");
   const [expectedSalePrice, setExpectedSalePrice] = useState("");
-  const [propertyStatus, setPropertyStatus] = useState("available");
-  const [images, setImages] = useState([]);
+  const [hiveContribution, setHiveContribution] = useState("");
+  const [expectedProfitPct, setExpectedProfitPct] = useState("");
+  const [investorProfitSharePct, setInvestorProfitSharePct] = useState("75");
+  const [hiveProfitSharePct, setHiveProfitSharePct] = useState("25");
+  const [constructionStatus, setConstructionStatus] = useState("not-started");
+  const [expectedCompletionDurationMonths, setExpectedCompletionDurationMonths] = useState("12");
+  const [expectedSellingDurationMonths, setExpectedSellingDurationMonths] = useState("6");
+  const [investorProtectionEnabled, setInvestorProtectionEnabled] = useState("yes");
+  const [earlyWithdrawalAllowed, setEarlyWithdrawalAllowed] = useState("yes");
+  const [earlyWithdrawalProfitRule, setEarlyWithdrawalProfitRule] = useState("no-profit");
+  const [listingStatus, setListingStatus] = useState("draft");
+  const [featuredProperty, setFeaturedProperty] = useState("no");
+  const [fundingProgressPct, setFundingProgressPct] = useState("");
+  const [currentFundingCollected, setCurrentFundingCollected] = useState("");
+  const [expectedAnnualRoiPct, setExpectedAnnualRoiPct] = useState("");
+  const [riskLevel, setRiskLevel] = useState("medium");
+  const [bedrooms, setBedrooms] = useState("");
+  const [bathrooms, setBathrooms] = useState("");
+  const [areaSize, setAreaSize] = useState("");
+  const [garage, setGarage] = useState("");
+  const [floorCount, setFloorCount] = useState("");
+  const [nearbySchool, setNearbySchool] = useState("no");
+  const [nearbyHospital, setNearbyHospital] = useState("no");
+  const [nearbyMarket, setNearbyMarket] = useState("no");
+  const [nearbyMosque, setNearbyMosque] = useState("no");
+  const [thumbnailImage, setThumbnailImage] = useState(null);
+  const [galleryImages, setGalleryImages] = useState([]);
 
   const [deletingId, setDeletingId] = useState("");
-  const fileInputRef = useRef(null);
-  const [photoDragOver, setPhotoDragOver] = useState(false);
+  const thumbnailInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const [imagePreviews, setImagePreviews] = useState([]);
 
   useEffect(() => {
-    const entries = images.map((file) => ({
+    const files = [thumbnailImage, ...galleryImages].filter(Boolean);
+    const entries = files.map((file) => ({
       url: URL.createObjectURL(file),
       name: file.name,
     }));
@@ -74,7 +94,7 @@ export default function AdminPropertiesPage() {
     return () => {
       entries.forEach((e) => URL.revokeObjectURL(e.url));
     };
-  }, [images]);
+  }, [thumbnailImage, galleryImages]);
 
   const load = async () => {
     setError("");
@@ -130,33 +150,103 @@ export default function AdminPropertiesPage() {
 
   const openModal = () => {
     setModalError("");
+    setModalTab("basic");
     setIsEditMode(false);
     setEditingId("");
     setTitle("");
+    setPropertyType("house");
     setLocation("");
+    setFullAddress("");
+    setDescription("");
     setTotalCost("");
-    setConstructionCost("");
-    setLandCost("");
+    setRequiredInvestorFunding("");
+    setMinimumInvestmentAllowed("");
     setExpectedSalePrice("");
-    setPropertyStatus("available");
-    setImages([]);
-    setPhotoDragOver(false);
+    setHiveContribution("");
+    setExpectedProfitPct("");
+    setInvestorProfitSharePct("75");
+    setHiveProfitSharePct("25");
+    setConstructionStatus("not-started");
+    setExpectedCompletionDurationMonths("12");
+    setExpectedSellingDurationMonths("6");
+    setInvestorProtectionEnabled("yes");
+    setEarlyWithdrawalAllowed("yes");
+    setEarlyWithdrawalProfitRule("no-profit");
+    setListingStatus("draft");
+    setFeaturedProperty("no");
+    setFundingProgressPct("");
+    setCurrentFundingCollected("");
+    setExpectedAnnualRoiPct("");
+    setRiskLevel("medium");
+    setBedrooms("");
+    setBathrooms("");
+    setAreaSize("");
+    setGarage("");
+    setFloorCount("");
+    setNearbySchool("no");
+    setNearbyHospital("no");
+    setNearbyMarket("no");
+    setNearbyMosque("no");
+    setThumbnailImage(null);
+    setGalleryImages([]);
     setShowModal(true);
   };
 
   const openEditModal = (p) => {
+    const pick = (...values) => {
+      for (const v of values) {
+        if (v !== undefined && v !== null && String(v) !== "") return v;
+      }
+      return "";
+    };
     setModalError("");
-    setPhotoDragOver(false);
+    setModalTab("basic");
     setIsEditMode(true);
     setEditingId(String(p?.id || ""));
     setTitle(String(p?.title || ""));
-    setLocation(String(p?.location || ""));
-    setTotalCost(String(p?.totalCost ?? ""));
-    setConstructionCost(String(p?.constructionCost ?? ""));
-    setLandCost(String(p?.landCost ?? ""));
-    setExpectedSalePrice(String(p?.expectedSalePrice ?? ""));
-    setPropertyStatus(String(p?.status || "available"));
-    setImages([]);
+    setPropertyType(String(pick(p?.type, p?.propertyType, "house")));
+    setLocation(String(pick(p?.city, p?.location, "")));
+    setFullAddress(String(pick(p?.address, p?.fullAddress, "")));
+    setDescription(String(p?.description || ""));
+    setTotalCost(String(pick(p?.totalCost, 0)));
+    setRequiredInvestorFunding(
+      String(pick(p?.investorFundingRequired, p?.requiredInvestorFunding, p?.investorContribution, ""))
+    );
+    setMinimumInvestmentAllowed(String(pick(p?.minimumInvestment, p?.minimumInvestmentAllowed, "")));
+    setExpectedSalePrice(String(pick(p?.expectedSellingPrice, p?.expectedSalePrice, "")));
+    setHiveContribution(String(pick(p?.hiveContribution, 0)));
+    setExpectedProfitPct(
+      String(pick(p?.expectedProfitPercentage, p?.expectedProfitPct, p?.expectedProfitMaxPct, ""))
+    );
+    setInvestorProfitSharePct(String(pick(p?.investorProfitShare, p?.investorProfitSharePct, "75")));
+    setHiveProfitSharePct(String(pick(p?.hiveProfitShare, p?.hiveProfitSharePct, "25")));
+    setConstructionStatus(String(p?.constructionStatus || "not-started"));
+    setExpectedCompletionDurationMonths(
+      String(pick(p?.expectedCompletionDuration, p?.expectedCompletionDurationMonths, "12"))
+    );
+    setExpectedSellingDurationMonths(
+      String(pick(p?.expectedSellingDuration, p?.expectedSellingDurationMonths, p?.expectedSaleDurationMonths, "6"))
+    );
+    setInvestorProtectionEnabled(p?.investorProtectionEnabled === false ? "no" : "yes");
+    setEarlyWithdrawalAllowed(p?.earlyWithdrawalAllowed === false ? "no" : "yes");
+    setEarlyWithdrawalProfitRule(String(pick(p?.earlyWithdrawalProfit, p?.earlyWithdrawalProfitRule, "no-profit")));
+    setListingStatus(normalizeListingStatus(pick(p?.listingStatus, "draft")));
+    setFeaturedProperty(pick(p?.featured, p?.featuredProperty, false) ? "yes" : "no");
+    setCurrentFundingCollected(String(pick(p?.fundingCollected, p?.currentFundingCollected, "")));
+    setFundingProgressPct(String(pick(p?.fundingProgressPct, "")));
+    setExpectedAnnualRoiPct(String(pick(p?.expectedAnnualRoiPct, "")));
+    setRiskLevel(String(pick(p?.riskLevel, "medium")));
+    setBedrooms(String(p?.bedrooms ?? ""));
+    setBathrooms(String(p?.bathrooms ?? ""));
+    setAreaSize(String(p?.areaSize ?? ""));
+    setGarage(String(p?.garage ?? ""));
+    setFloorCount(String(p?.floorCount ?? ""));
+    setNearbySchool(p?.nearbySchool ? "yes" : "no");
+    setNearbyHospital(p?.nearbyHospital ? "yes" : "no");
+    setNearbyMarket(p?.nearbyMarket ? "yes" : "no");
+    setNearbyMosque(p?.nearbyMosque ? "yes" : "no");
+    setThumbnailImage(null);
+    setGalleryImages([]);
     setShowModal(true);
   };
 
@@ -165,21 +255,24 @@ export default function AdminPropertiesPage() {
     setShowModal(false);
   };
 
-  const handlePickPhotos = (fileList) => {
+  const handlePickThumbnail = (fileList) => {
     const picked = Array.from(fileList || []).filter((f) => f.type.startsWith("image/"));
     if (picked.length === 0) return;
-    if (picked.length > 5) {
-      setModalError("Choose up to 5 images.");
+    setModalError("");
+    setThumbnailImage(picked[0]);
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
+  };
+
+  const handlePickGallery = (fileList) => {
+    const picked = Array.from(fileList || []).filter((f) => f.type.startsWith("image/"));
+    if (picked.length === 0) return;
+    if (picked.length > 4) {
+      setModalError("Gallery allows up to 4 images.");
       return;
     }
     setModalError("");
-    setImages(picked.slice(0, 5));
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const removeImageAt = (index) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setGalleryImages(picked.slice(0, 4));
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
 
   const onCreate = async (e) => {
@@ -195,22 +288,77 @@ export default function AdminPropertiesPage() {
     }
 
     const tc = Number(totalCost);
-    const cc = Number(constructionCost);
-    const lc = Number(landCost);
     const esp = Number(expectedSalePrice);
+    const hive = Number(hiveContribution);
+    const requiredFunding = Math.max(0, tc - hive);
+    const expectedProfit = Number(expectedProfitPct);
+    const minimumInvestment = Number(minimumInvestmentAllowed);
+    const investorShare = Number(investorProfitSharePct);
+    const hiveShare = Number(hiveProfitSharePct);
+    const completionDuration = Number(expectedCompletionDurationMonths);
+    const sellingDuration = Number(expectedSellingDurationMonths);
+    const fundingProgress = Number(fundingProgressPct);
+    const currentFunding = Number(currentFundingCollected);
+    const annualRoi = Number(expectedAnnualRoiPct);
+    const beds = Number(bedrooms);
+    const baths = Number(bathrooms);
+    const area = Number(areaSize);
+    const garageCount = Number(garage);
+    const floors = Number(floorCount);
+    const constructionDerived = Math.max(0, tc - hive);
+    const landDerived = Math.max(0, tc - constructionDerived);
+    const derivedPublicStatus =
+      listingStatus === "completed" ||
+      constructionStatus === "sold" ||
+      constructionStatus === "completed"
+        ? "sold"
+        : listingStatus === "active" &&
+            ["under-construction", "gray-structure-completed", "finishing-work"].includes(
+              constructionStatus
+            )
+          ? "in-progress"
+          : "available";
 
-    if (!Number.isFinite(tc) || !Number.isFinite(cc) || !Number.isFinite(lc) || !Number.isFinite(esp)) {
-      setModalError("Please enter valid numbers for costs and expected sale price.");
+    if (
+      !Number.isFinite(tc) ||
+      !Number.isFinite(esp) ||
+      !Number.isFinite(hive) ||
+      !Number.isFinite(requiredFunding) ||
+      !Number.isFinite(expectedProfit) ||
+      !Number.isFinite(minimumInvestment) ||
+      !Number.isFinite(investorShare) ||
+      !Number.isFinite(hiveShare) ||
+      !Number.isFinite(completionDuration) ||
+      !Number.isFinite(sellingDuration) ||
+      !Number.isFinite(fundingProgress) ||
+      !Number.isFinite(currentFunding) ||
+      !Number.isFinite(annualRoi) ||
+      !Number.isFinite(beds) ||
+      !Number.isFinite(baths) ||
+      !Number.isFinite(area) ||
+      !Number.isFinite(garageCount) ||
+      !Number.isFinite(floors)
+    ) {
+      setModalError("Please enter valid numbers for all numeric fields.");
       return;
     }
 
-    if (!images || images.length < 1) {
-      setModalError("Please upload at least 1 image.");
+    if (Math.round(investorShare + hiveShare) !== 100) {
+      setModalError("Investor and Hive profit shares must total 100.");
       return;
     }
 
-    if (images.length > 5) {
-      setModalError("Maximum 5 images are allowed.");
+    if (fundingProgress < 0 || fundingProgress > 100) {
+      setModalError("Funding progress must be between 0 and 100.");
+      return;
+    }
+
+    if (!thumbnailImage) {
+      setModalError("Please upload a property thumbnail.");
+      return;
+    }
+    if (galleryImages.length > 4) {
+      setModalError("Gallery allows up to 4 images.");
       return;
     }
 
@@ -218,13 +366,30 @@ export default function AdminPropertiesPage() {
     try {
       const fd = new FormData();
       fd.append("title", t);
-      fd.append("location", loc);
+      fd.append("type", String(propertyType || "house"));
+      fd.append("city", loc);
+      fd.append("address", String(fullAddress || "").trim());
+      fd.append("description", String(description || "").trim());
       fd.append("totalCost", String(tc));
-      fd.append("constructionCost", String(cc));
-      fd.append("landCost", String(lc));
-      fd.append("status", String(propertyStatus || "available"));
-      fd.append("expectedSalePrice", String(esp));
-      Array.from(images).forEach((file) => {
+      fd.append("constructionStatus", String(constructionStatus || "not-started"));
+      fd.append("listingStatus", normalizeListingStatus(listingStatus));
+      fd.append("expectedSellingPrice", String(esp));
+      fd.append("investorFundingRequired", String(requiredFunding));
+      fd.append("hiveContribution", String(hive));
+      fd.append("expectedProfitPercentage", String(expectedProfit));
+      fd.append("minimumInvestment", String(minimumInvestment));
+      fd.append("investorProfitShare", String(investorShare));
+      fd.append("hiveProfitShare", String(hiveShare));
+      fd.append("expectedCompletionDuration", String(completionDuration));
+      fd.append("expectedSellingDuration", String(sellingDuration));
+      fd.append("fundingCollected", String(currentFunding));
+      fd.append("investorProtectionEnabled", String(investorProtectionEnabled === "yes"));
+      fd.append("earlyWithdrawalAllowed", String(earlyWithdrawalAllowed === "yes"));
+      fd.append("earlyWithdrawalProfit", String(earlyWithdrawalProfitRule || "no-profit"));
+      fd.append("featured", String(featuredProperty === "yes"));
+      fd.append("createdBy", "admin");
+      fd.append("images", thumbnailImage);
+      Array.from(galleryImages).forEach((file) => {
         fd.append("images", file);
       });
 
@@ -276,12 +441,68 @@ export default function AdminPropertiesPage() {
     }
 
     const tc = Number(totalCost);
-    const cc = Number(constructionCost);
-    const lc = Number(landCost);
     const esp = Number(expectedSalePrice);
+    const hive = Number(hiveContribution);
+    const requiredFunding = Math.max(0, tc - hive);
+    const expectedProfit = Number(expectedProfitPct);
+    const minimumInvestment = Number(minimumInvestmentAllowed);
+    const investorShare = Number(investorProfitSharePct);
+    const hiveShare = Number(hiveProfitSharePct);
+    const completionDuration = Number(expectedCompletionDurationMonths);
+    const sellingDuration = Number(expectedSellingDurationMonths);
+    const fundingProgress = Number(fundingProgressPct);
+    const currentFunding = Number(currentFundingCollected);
+    const annualRoi = Number(expectedAnnualRoiPct);
+    const beds = Number(bedrooms);
+    const baths = Number(bathrooms);
+    const area = Number(areaSize);
+    const garageCount = Number(garage);
+    const floors = Number(floorCount);
+    const constructionDerived = Math.max(0, tc - hive);
+    const landDerived = Math.max(0, tc - constructionDerived);
+    const derivedPublicStatus =
+      listingStatus === "completed" ||
+      constructionStatus === "sold" ||
+      constructionStatus === "completed"
+        ? "sold"
+        : listingStatus === "active" &&
+            ["under-construction", "gray-structure-completed", "finishing-work"].includes(
+              constructionStatus
+            )
+          ? "in-progress"
+          : "available";
 
-    if (!Number.isFinite(tc) || !Number.isFinite(cc) || !Number.isFinite(lc) || !Number.isFinite(esp)) {
-      setModalError("Please enter valid numbers for costs and expected sale price.");
+    if (
+      !Number.isFinite(tc) ||
+      !Number.isFinite(esp) ||
+      !Number.isFinite(hive) ||
+      !Number.isFinite(requiredFunding) ||
+      !Number.isFinite(expectedProfit) ||
+      !Number.isFinite(minimumInvestment) ||
+      !Number.isFinite(investorShare) ||
+      !Number.isFinite(hiveShare) ||
+      !Number.isFinite(completionDuration) ||
+      !Number.isFinite(sellingDuration) ||
+      !Number.isFinite(fundingProgress) ||
+      !Number.isFinite(currentFunding) ||
+      !Number.isFinite(annualRoi) ||
+      !Number.isFinite(beds) ||
+      !Number.isFinite(baths) ||
+      !Number.isFinite(area) ||
+      !Number.isFinite(garageCount) ||
+      !Number.isFinite(floors)
+    ) {
+      setModalError("Please enter valid numbers for all numeric fields.");
+      return;
+    }
+
+    if (Math.round(investorShare + hiveShare) !== 100) {
+      setModalError("Investor and Hive profit shares must total 100.");
+      return;
+    }
+
+    if (fundingProgress < 0 || fundingProgress > 100) {
+      setModalError("Funding progress must be between 0 and 100.");
       return;
     }
 
@@ -292,12 +513,28 @@ export default function AdminPropertiesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: t,
-          location: loc,
+          type: String(propertyType || "house"),
+          city: loc,
+          address: String(fullAddress || "").trim(),
+          description: String(description || "").trim(),
           totalCost: tc,
-          constructionCost: cc,
-          landCost: lc,
-          status: String(propertyStatus || "available"),
-          expectedSalePrice: esp,
+          constructionStatus: String(constructionStatus || "not-started"),
+          listingStatus: normalizeListingStatus(listingStatus),
+          expectedSellingPrice: esp,
+          investorFundingRequired: requiredFunding,
+          hiveContribution: hive,
+          expectedProfitPercentage: expectedProfit,
+          minimumInvestment: minimumInvestment,
+          investorProfitShare: investorShare,
+          hiveProfitShare: hiveShare,
+          expectedCompletionDuration: completionDuration,
+          expectedSellingDuration: sellingDuration,
+          fundingCollected: currentFunding,
+          investorProtectionEnabled: investorProtectionEnabled === "yes",
+          earlyWithdrawalAllowed: earlyWithdrawalAllowed === "yes",
+          earlyWithdrawalProfit: String(earlyWithdrawalProfitRule || "no-profit"),
+          featured: featuredProperty === "yes",
+          createdBy: "admin",
         }),
       });
 
@@ -325,9 +562,9 @@ export default function AdminPropertiesPage() {
     const q = query.trim().toLowerCase();
 
     return properties.filter((p) => {
-      const displayStatus = formatStatus(p.status);
+      const displayStatus = formatStatus(p.listingStatus);
       const matchesQuery = q
-        ? `${p.title} ${p.location} ${p.id}`.toLowerCase().includes(q)
+        ? `${p.title} ${p.city} ${p.id}`.toLowerCase().includes(q)
         : true;
 
       const matchesStatus = status === "All" ? true : displayStatus === status;
@@ -335,6 +572,24 @@ export default function AdminPropertiesPage() {
       return matchesQuery && matchesStatus;
     });
   }, [query, status, properties]);
+
+  useEffect(() => {
+    const tc = Number(totalCost);
+    const hive = Number(hiveContribution);
+    if (!Number.isFinite(tc) || !Number.isFinite(hive)) {
+      setRequiredInvestorFunding("");
+      return;
+    }
+    setRequiredInvestorFunding(String(Math.max(0, tc - hive)));
+  }, [totalCost, hiveContribution]);
+
+  const modalTabs = [
+    { key: "basic", label: "Basic Info" },
+    { key: "financial", label: "Financial" },
+    { key: "construction", label: "Construction" },
+    { key: "media", label: "Media" },
+    { key: "rules", label: "Rules" },
+  ];
 
   return (
     <>
@@ -376,7 +631,7 @@ export default function AdminPropertiesPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-            placeholder="Search by title, location, or id"
+            placeholder="Search by title, city, or id"
           />
 
           <select
@@ -385,9 +640,11 @@ export default function AdminPropertiesPage() {
             className="w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
           >
             <option value="All">All statuses</option>
-            <option value="Available">Available</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Sold">Sold</option>
+            <option value="Draft">Draft</option>
+            <option value="Active">Active</option>
+            <option value="Paused">Paused</option>
+            <option value="Completed">Completed</option>
+            <option value="Archived">Archived</option>
           </select>
 
           <div className="rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-slate">
@@ -428,10 +685,10 @@ export default function AdminPropertiesPage() {
                   <tr key={p.id} className="odd:bg-hive-light even:bg-hive-light">
                     <td className="border-t border-hive-taupe/20 px-4 py-4">
                       <div className="flex items-start gap-3">
-                        {p.coverImage ? (
+                        {p?.thumbnail?.url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={p.coverImage}
+                            src={p.thumbnail.url}
                             alt=""
                             className="h-12 w-12 shrink-0 rounded-lg border border-hive-taupe/25 object-cover"
                           />
@@ -460,16 +717,19 @@ export default function AdminPropertiesPage() {
                           <p className="mt-1 text-xs text-hive-slate">{p.id}</p>
                           <p className="mt-1 text-xs text-hive-slate">
                             Images:{" "}
-                            <span className="font-semibold text-hive-charcoal">{p.imagesCount ?? 0}</span>
+                            <span className="font-semibold text-hive-charcoal">
+                              {(p?.thumbnail?.url ? 1 : 0) +
+                                (Array.isArray(p?.galleryImages) ? p.galleryImages.length : 0)}
+                            </span>
                           </p>
                         </div>
                       </div>
                     </td>
                     <td className="border-t border-hive-taupe/20 px-4 py-4 text-sm text-hive-slate">
-                      {p.location}
+                      {p.city}
                     </td>
                     <td className="border-t border-hive-taupe/20 px-4 py-4">
-                      <StatusBadge status={formatStatus(p.status)} />
+                      <StatusBadge status={formatStatus(p.listingStatus)} />
                     </td>
                     <td className="border-t border-hive-taupe/20 px-4 py-4 text-sm font-semibold text-hive-charcoal">
                       {formatCurrency(p.totalCost)}
@@ -544,182 +804,278 @@ export default function AdminPropertiesPage() {
               className="flex min-h-0 flex-1 flex-col"
             >
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4 [scrollbar-gutter:stable]">
-                {!isEditMode ? (
-                  <div className="mb-6">
-                    <label className="text-sm font-semibold text-hive-charcoal">Property photos</label>
-                    <p className="mt-1 text-xs text-hive-slate">
-                      Images upload to Cloudinary; only URLs are saved in MongoDB (max 5).
-                    </p>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => handlePickPhotos(e.target.files)}
-                    />
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setPhotoDragOver(true);
-                      }}
-                      onDragLeave={() => setPhotoDragOver(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setPhotoDragOver(false);
-                        handlePickPhotos(e.dataTransfer.files);
-                      }}
-                      className={
-                        "mt-3 rounded-2xl border-2 border-dashed transition-colors " +
-                        (photoDragOver
-                          ? "border-hive-taupe bg-hive-taupe/10"
-                          : "border-hive-taupe/35 bg-hive-light hover:border-hive-taupe/55 hover:bg-neutral-50")
-                      }
-                    >
+                <div className="mb-6 rounded-xl border border-hive-taupe/20 bg-hive-light p-2">
+                  <div className="grid gap-2 sm:grid-cols-5">
+                    {modalTabs.map((tab) => (
                       <button
+                        key={tab.key}
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex w-full cursor-pointer flex-col items-center gap-4 px-5 py-8 text-center sm:flex-row sm:text-left"
+                        onClick={() => setModalTab(tab.key)}
+                        className={
+                          "rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors " +
+                          (modalTab === tab.key
+                            ? "bg-hive-charcoal text-hive-light"
+                            : "border border-hive-taupe/20 text-hive-slate hover:border-hive-taupe hover:text-hive-charcoal")
+                        }
                       >
-                        <PhotoUploadIllustration />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-hive-charcoal">
-                            Upload listing photos
-                          </p>
-                          <p className="mt-1 text-xs leading-relaxed text-hive-slate">
-                            Drag and drop images here, or click to browse. JPEG / PNG / WebP — up to 5 files.
-                          </p>
-                          <p className="mt-3 inline-flex items-center rounded-md bg-hive-charcoal px-4 py-2 text-xs font-semibold text-hive-light">
-                            Choose files
-                          </p>
-                        </div>
+                        {tab.label}
                       </button>
-                    </div>
-                    <p className="mt-2 text-xs text-hive-slate">
-                      Selected:{" "}
-                      <span className="font-semibold text-hive-charcoal">{images?.length || 0}</span>
-                      {images?.length ? (
-                        <span className="text-hive-slate">
-                          {" "}
-                          ({images.map((f) => f.name).join(", ")})
-                        </span>
-                      ) : null}
-                    </p>
+                    ))}
+                  </div>
+                </div>
 
-                    {imagePreviews.length > 0 ? (
-                      <ul className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5" aria-label="Selected image previews">
-                        {imagePreviews.map((entry, idx) => (
-                          <li
-                            key={`${entry.name}-${idx}`}
-                            className="relative aspect-square overflow-hidden rounded-xl border border-hive-taupe/25 bg-neutral-100 shadow-sm"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs from local files */}
-                            <img
-                              src={entry.url}
-                              alt={entry.name ? `Preview ${entry.name}` : `Preview ${idx + 1}`}
-                              className="h-full w-full object-cover"
+              <div className="space-y-6">
+                {modalTab === "basic" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
+                    Basic Information
+                  </p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Property Title *</label>
+                      <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Property Type *</label>
+                      <select value={propertyType} onChange={(e) => setPropertyType(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe">
+                        <option value="house">House</option>
+                        <option value="apartment">Apartment</option>
+                        <option value="plot">Plot</option>
+                        <option value="commercial">Commercial</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">City / Location *</label>
+                      <input value={location} onChange={(e) => setLocation(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Full Address</label>
+                      <input value={fullAddress} onChange={(e) => setFullAddress(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-sm font-semibold text-hive-charcoal">Property Description *</label>
+                      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe" />
+                    </div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "financial" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">Financial Details</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Total Project Cost *</label><input value={totalCost} onChange={(e) => setTotalCost(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Hive Contribution Amount *</label><input value={hiveContribution} onChange={(e) => setHiveContribution(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Required Investor Funding *</label>
+                      <input
+                        value={requiredInvestorFunding}
+                        readOnly
+                        inputMode="numeric"
+                        className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-zinc-50 px-3 py-2 text-sm text-hive-charcoal"
+                      />
+                      <p className="mt-1 text-xs text-hive-slate">
+                        Auto-calculated as Total Project Cost minus Hive Contribution.
+                      </p>
+                    </div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Expected Selling Price</label><input value={expectedSalePrice} onChange={(e) => setExpectedSalePrice(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Expected Profit Percentage</label><input value={expectedProfitPct} onChange={(e) => setExpectedProfitPct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Minimum Investment Allowed</label><input value={minimumInvestmentAllowed} onChange={(e) => setMinimumInvestmentAllowed(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Funding Progress (%)</label><input value={fundingProgressPct} onChange={(e) => setFundingProgressPct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Current Funding Collected</label><input value={currentFundingCollected} onChange={(e) => setCurrentFundingCollected(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Expected Annual ROI (%)</label><input value={expectedAnnualRoiPct} onChange={(e) => setExpectedAnnualRoiPct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Risk Level</label>
+                      <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "financial" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">Profit Distribution</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Investor Profit Share (%)</label><input value={investorProfitSharePct} onChange={(e) => setInvestorProfitSharePct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Hive Profit Share (%)</label><input value={hiveProfitSharePct} onChange={(e) => setHiveProfitSharePct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "construction" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">Construction Details</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Construction Status</label>
+                      <select value={constructionStatus} onChange={(e) => setConstructionStatus(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
+                        <option value="not-started">Not Started</option>
+                        <option value="land-purchased">Land Purchased</option>
+                        <option value="under-construction">Under Construction</option>
+                        <option value="gray-structure-completed">Gray Structure Completed</option>
+                        <option value="finishing-work">Finishing Work</option>
+                        <option value="ready-for-sale">Ready for Sale</option>
+                        <option value="sold">Sold</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Expected Completion Duration</label>
+                      <input value={expectedCompletionDurationMonths} onChange={(e) => setExpectedCompletionDurationMonths(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" placeholder="12" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Expected Selling Duration</label>
+                      <input value={expectedSellingDurationMonths} onChange={(e) => setExpectedSellingDurationMonths(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" placeholder="6" />
+                    </div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "basic" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">Property Features</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Bedrooms</label><input value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Bathrooms</label><input value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Area Size</label><input value={areaSize} onChange={(e) => setAreaSize(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" placeholder="e.g. 1200" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Garage</label><input value={garage} onChange={(e) => setGarage(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Floor Count</label><input value={floorCount} onChange={(e) => setFloorCount(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "basic" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">Nearby Facilities</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div><label className="text-sm font-semibold text-hive-charcoal">School</label><select value={nearbySchool} onChange={(e) => setNearbySchool(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm"><option value="no">No</option><option value="yes">Yes</option></select></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Hospital</label><select value={nearbyHospital} onChange={(e) => setNearbyHospital(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm"><option value="no">No</option><option value="yes">Yes</option></select></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Market</label><select value={nearbyMarket} onChange={(e) => setNearbyMarket(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm"><option value="no">No</option><option value="yes">Yes</option></select></div>
+                    <div><label className="text-sm font-semibold text-hive-charcoal">Mosque</label><select value={nearbyMosque} onChange={(e) => setNearbyMosque(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm"><option value="no">No</option><option value="yes">Yes</option></select></div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "rules" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">Exit & Security Rules</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Investor Protection Enabled</label>
+                      <select value={investorProtectionEnabled} onChange={(e) => setInvestorProtectionEnabled(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
+                        <option value="yes">Yes</option><option value="no">No</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Early Withdrawal Allowed</label>
+                      <select value={earlyWithdrawalAllowed} onChange={(e) => setEarlyWithdrawalAllowed(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
+                        <option value="yes">Yes</option><option value="no">No</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Early Withdrawal Profit</label>
+                      <select value={earlyWithdrawalProfitRule} onChange={(e) => setEarlyWithdrawalProfitRule(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
+                        <option value="no-profit">No Profit</option>
+                        <option value="partial-profit">Partial Profit</option>
+                        <option value="full-profit">Full Profit</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "construction" ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">Property Status</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Listing Status</label>
+                      <select value={listingStatus} onChange={(e) => setListingStatus(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                        <option value="completed">Completed</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Featured Property</label>
+                      <select value={featuredProperty} onChange={(e) => setFeaturedProperty(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                ) : null}
+
+                {modalTab === "media" ? (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
+                      Property Media
+                    </p>
+                    <p className="mt-1 text-xs text-hive-slate">
+                      {isEditMode
+                        ? "Media uploads are available while creating a property. Existing images remain unchanged in edit mode."
+                        : "Upload one thumbnail and up to 4 gallery images."}
+                    </p>
+                    {!isEditMode ? (
+                      <>
+                        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-hive-taupe/25 p-4">
+                            <label className="text-sm font-semibold text-hive-charcoal">
+                              Upload Property Thumbnail
+                            </label>
+                            <input
+                              ref={thumbnailInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="mt-2 w-full text-sm"
+                              onChange={(e) => handlePickThumbnail(e.target.files)}
                             />
-                            <button
-                              type="button"
-                              onClick={() => removeImageAt(idx)}
-                              className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/65 text-sm font-bold leading-none text-white shadow-md hover:bg-red-700"
-                              aria-label={`Remove ${entry.name || "image"}`}
-                            >
-                              ×
-                            </button>
-                            <p className="pointer-events-none absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1.5 py-1 text-[10px] text-white">
-                              {entry.name}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
+                          </div>
+                          <div className="rounded-2xl border border-hive-taupe/25 p-4">
+                            <label className="text-sm font-semibold text-hive-charcoal">
+                              Upload Gallery Images
+                            </label>
+                            <input
+                              ref={galleryInputRef}
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="mt-2 w-full text-sm"
+                              onChange={(e) => handlePickGallery(e.target.files)}
+                            />
+                          </div>
+                        </div>
+                        {imagePreviews.length > 0 ? (
+                          <ul className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5" aria-label="Selected image previews">
+                            {imagePreviews.map((entry, idx) => (
+                              <li
+                                key={`${entry.name}-${idx}`}
+                                className="relative aspect-square overflow-hidden rounded-xl border border-hive-taupe/25 bg-neutral-100 shadow-sm"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs from local files */}
+                                <img
+                                  src={entry.url}
+                                  alt={entry.name ? `Preview ${entry.name}` : `Preview ${idx + 1}`}
+                                  className="h-full w-full object-cover"
+                                />
+                                <p className="pointer-events-none absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1.5 py-1 text-[10px] text-white">
+                                  {entry.name}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
                 ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">Title</label>
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                    placeholder="Property title"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">Location</label>
-                  <input
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                    placeholder="City / Area"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">Total Cost</label>
-                  <input
-                    value={totalCost}
-                    onChange={(e) => setTotalCost(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                    placeholder="8500000"
-                    inputMode="numeric"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">Expected Sale Price</label>
-                  <input
-                    value={expectedSalePrice}
-                    onChange={(e) => setExpectedSalePrice(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                    placeholder="10000000"
-                    inputMode="numeric"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">Construction Cost</label>
-                  <input
-                    value={constructionCost}
-                    onChange={(e) => setConstructionCost(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                    placeholder="4500000"
-                    inputMode="numeric"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">Land Cost</label>
-                  <input
-                    value={landCost}
-                    onChange={(e) => setLandCost(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                    placeholder="4000000"
-                    inputMode="numeric"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:max-w-md">
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">Status</label>
-                  <select
-                    value={propertyStatus}
-                    onChange={(e) => setPropertyStatus(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                  >
-                    <option value="available">Available</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="sold">Sold</option>
-                  </select>
-                </div>
               </div>
 
               {modalError ? (

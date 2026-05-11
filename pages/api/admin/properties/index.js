@@ -3,9 +3,37 @@ import dbConnect from "@/lib/dbConnect";
 import { requireAdmin } from "@/lib/adminSession";
 import Property from "@/models/Property";
 import { isCloudinaryConfigured, uploadImageBuffer } from "@/lib/cloudinary";
-import { serializePropertyImages } from "@/lib/propertyImages";
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+function parseBooleanLike(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (v === "true" || v === "yes" || v === "1") return true;
+    if (v === "false" || v === "no" || v === "0") return false;
+  }
+  return fallback;
+}
+
+function derivePublicStatus(listingStatus, constructionStatus) {
+  if (
+    listingStatus === "completed" ||
+    constructionStatus === "sold" ||
+    constructionStatus === "completed"
+  ) {
+    return "sold";
+  }
+  if (
+    listingStatus === "active" &&
+    ["under-construction", "gray-structure-completed", "finishing-work"].includes(
+      constructionStatus
+    )
+  ) {
+    return "in-progress";
+  }
+  return "available";
+}
 
 function runMiddleware(req, res, fn) {
   return new Promise((resolve, reject) => {
@@ -33,25 +61,44 @@ export default async function handler(req, res) {
       const properties = await Property.find({})
         .sort({ createdAt: -1 })
         .select(
-          "title location totalCost constructionCost landCost status expectedSalePrice createdAt images"
+          "title type city address description totalCost hiveContribution investorFundingRequired expectedSellingPrice expectedProfitPercentage minimumInvestment investorProfitShare hiveProfitShare constructionStatus expectedCompletionDuration expectedSellingDuration investorProtectionEnabled earlyWithdrawalAllowed earlyWithdrawalProfit thumbnail galleryImages listingStatus featured fundingCollected createdBy createdAt"
         )
         .lean();
 
       return res.status(200).json({
         properties: properties.map((p) => {
-          const img = serializePropertyImages(p);
           return {
             id: String(p._id),
             title: p.title,
-            location: p.location,
+            type: p.type,
+            city: p.city,
+            address: p.address,
+            description: p.description,
             totalCost: p.totalCost,
-            constructionCost: p.constructionCost,
-            landCost: p.landCost,
-            status: p.status,
-            expectedSalePrice: p.expectedSalePrice,
+            hiveContribution: p.hiveContribution,
+            investorFundingRequired: p.investorFundingRequired,
+            expectedSellingPrice: p.expectedSellingPrice,
+            expectedProfitPercentage: p.expectedProfitPercentage,
+            minimumInvestment: p.minimumInvestment,
+            investorProfitShare: p.investorProfitShare,
+            hiveProfitShare: p.hiveProfitShare,
+            constructionStatus: p.constructionStatus,
+            nearbySchool: p.nearbySchool,
+            nearbyHospital: p.nearbyHospital,
+            nearbyMarket: p.nearbyMarket,
+            nearbyMosque: p.nearbyMosque,
+            expectedCompletionDuration: p.expectedCompletionDuration,
+            expectedSellingDuration: p.expectedSellingDuration,
+            investorProtectionEnabled: p.investorProtectionEnabled,
+            earlyWithdrawalAllowed: p.earlyWithdrawalAllowed,
+            earlyWithdrawalProfit: p.earlyWithdrawalProfit,
+            listingStatus: p.listingStatus,
+            featured: p.featured,
+            fundingCollected: p.fundingCollected,
+            createdBy: p.createdBy,
+            thumbnail: p.thumbnail || {},
+            galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
             createdAt: p.createdAt,
-            imagesCount: img.imagesCount,
-            coverImage: img.coverImage,
           };
         }),
       });
@@ -73,82 +120,164 @@ export default async function handler(req, res) {
 
       const {
         title,
-        location,
+        city,
         totalCost,
-        constructionCost,
-        landCost,
-        status,
-        expectedSalePrice,
+        expectedSellingPrice,
+        hiveContribution,
+        investorFundingRequired,
+        type,
+        address,
+        description,
+        expectedProfitPercentage,
+        minimumInvestment,
+        investorProfitShare,
+        hiveProfitShare,
+        constructionStatus,
+        expectedCompletionDuration,
+        expectedSellingDuration,
+        investorProtectionEnabled,
+        earlyWithdrawalAllowed,
+        earlyWithdrawalProfit,
+        listingStatus,
+        featured,
+        fundingCollected,
+        createdBy,
       } = req.body ?? {};
 
-      if (!title || !location) {
-        return res.status(400).json({ message: "title and location are required" });
+      if (!title || !city) {
+        return res.status(400).json({ message: "title and city are required" });
       }
 
       const totalCostNum = Number(totalCost);
-      const constructionCostNum = Number(constructionCost);
-      const landCostNum = Number(landCost);
-      const expectedSalePriceNum = Number(expectedSalePrice);
+      const expectedSellingPriceNum = Number(expectedSellingPrice);
+      const hiveContributionNum = Number(hiveContribution);
+      const investorFundingRequiredNum = Number(investorFundingRequired);
+      const expectedProfitPercentageNum = Number(expectedProfitPercentage);
+      const minimumInvestmentNum = Number(minimumInvestment);
+      const investorProfitShareNum = Number(investorProfitShare);
+      const hiveProfitShareNum = Number(hiveProfitShare);
+      const expectedCompletionDurationNum = Number(expectedCompletionDuration);
+      const expectedSellingDurationNum = Number(expectedSellingDuration);
+      const fundingCollectedNum = Number(fundingCollected);
 
       if (
         !Number.isFinite(totalCostNum) ||
-        !Number.isFinite(constructionCostNum) ||
-        !Number.isFinite(landCostNum) ||
-        !Number.isFinite(expectedSalePriceNum)
+        !Number.isFinite(expectedSellingPriceNum) ||
+        !Number.isFinite(hiveContributionNum) ||
+        !Number.isFinite(investorFundingRequiredNum) ||
+        !Number.isFinite(expectedProfitPercentageNum) ||
+        !Number.isFinite(minimumInvestmentNum) ||
+        !Number.isFinite(investorProfitShareNum) ||
+        !Number.isFinite(hiveProfitShareNum) ||
+        !Number.isFinite(expectedCompletionDurationNum) ||
+        !Number.isFinite(expectedSellingDurationNum) ||
+        !Number.isFinite(fundingCollectedNum)
       ) {
         return res.status(400).json({
           message:
-            "totalCost, constructionCost, landCost, and expectedSalePrice must be valid numbers",
+            "All numeric fields must contain valid numeric values",
         });
       }
 
-      const normalizedStatus = String(status || "available").toLowerCase();
-      const allowed = ["available", "sold", "in-progress"];
-      const finalStatus = allowed.includes(normalizedStatus)
-        ? normalizedStatus
-        : "available";
+      if (Math.round(investorProfitShareNum + hiveProfitShareNum) !== 100) {
+        return res.status(400).json({
+          message: "investorProfitShare and hiveProfitShare must total 100",
+        });
+      }
 
+      const normalizedListingStatus = String(listingStatus || "active").toLowerCase();
+      const allowedListingStatuses = ["draft", "active", "paused", "completed", "archived"];
+      const finalListingStatus = allowedListingStatuses.includes(normalizedListingStatus)
+        ? normalizedListingStatus
+        : "draft";
+      const normalizedConstructionStatus = String(constructionStatus || "not-started").toLowerCase();
+      const allowedConstructionStatuses = [
+        "not-started",
+        "land-purchased",
+        "under-construction",
+        "gray-structure-completed",
+        "finishing-work",
+        "ready-for-sale",
+        "sold",
+        "completed",
+      ];
+      const finalConstructionStatus = allowedConstructionStatuses.includes(normalizedConstructionStatus)
+        ? normalizedConstructionStatus
+        : "not-started";
       const files = Array.isArray(req.files) ? req.files : [];
       if (files.length > 5) {
         return res.status(400).json({ message: "Maximum 5 images are allowed" });
       }
 
-      const images = [];
+      const uploaded = [];
       for (const f of files) {
         if (!f?.buffer?.length) continue;
         const { url, publicId } = await uploadImageBuffer(f.buffer);
-        images.push({ url, publicId });
+        uploaded.push({ url, publicId });
       }
+      const thumbnail = uploaded[0] || {};
+      const galleryImages = uploaded.slice(1);
 
       await dbConnect();
 
       const property = await Property.create({
         title: String(title).trim(),
-        location: String(location).trim(),
+        type: String(type || "house").trim().toLowerCase(),
+        city: String(city).trim(),
+        address: String(address || "").trim(),
+        description: String(description || "").trim(),
         totalCost: totalCostNum,
-        constructionCost: constructionCostNum,
-        landCost: landCostNum,
-        status: finalStatus,
-        expectedSalePrice: expectedSalePriceNum,
-        images,
+        expectedSellingPrice: expectedSellingPriceNum,
+        hiveContribution: hiveContributionNum,
+        investorFundingRequired: investorFundingRequiredNum,
+        expectedProfitPercentage: expectedProfitPercentageNum,
+        minimumInvestment: minimumInvestmentNum,
+        investorProfitShare: investorProfitShareNum,
+        hiveProfitShare: hiveProfitShareNum,
+        constructionStatus: finalConstructionStatus,
+        expectedCompletionDuration: expectedCompletionDurationNum,
+        expectedSellingDuration: expectedSellingDurationNum,
+        investorProtectionEnabled: parseBooleanLike(investorProtectionEnabled, true),
+        earlyWithdrawalAllowed: parseBooleanLike(earlyWithdrawalAllowed, true),
+        earlyWithdrawalProfit: String(earlyWithdrawalProfit || "no-profit").toLowerCase(),
+        listingStatus: finalListingStatus,
+        featured: parseBooleanLike(featured, false),
+        fundingCollected: fundingCollectedNum,
+        createdBy: String(createdBy || payload.email || payload.id || "").trim(),
+        thumbnail,
+        galleryImages,
       });
-
-      const img = serializePropertyImages(property.toObject());
 
       return res.status(201).json({
         message: "Property created",
         property: {
           id: String(property._id),
           title: property.title,
-          location: property.location,
+          type: property.type,
+          city: property.city,
+          address: property.address,
+          description: property.description,
           totalCost: property.totalCost,
-          constructionCost: property.constructionCost,
-          landCost: property.landCost,
-          status: property.status,
-          expectedSalePrice: property.expectedSalePrice,
+          expectedSellingPrice: property.expectedSellingPrice,
+          hiveContribution: property.hiveContribution,
+          investorFundingRequired: property.investorFundingRequired,
+          expectedProfitPercentage: property.expectedProfitPercentage,
+          minimumInvestment: property.minimumInvestment,
+          investorProfitShare: property.investorProfitShare,
+          hiveProfitShare: property.hiveProfitShare,
+          constructionStatus: property.constructionStatus,
+          expectedCompletionDuration: property.expectedCompletionDuration,
+          expectedSellingDuration: property.expectedSellingDuration,
+          investorProtectionEnabled: property.investorProtectionEnabled,
+          earlyWithdrawalAllowed: property.earlyWithdrawalAllowed,
+          earlyWithdrawalProfit: property.earlyWithdrawalProfit,
+          listingStatus: property.listingStatus,
+          featured: property.featured,
+          fundingCollected: property.fundingCollected,
+          createdBy: property.createdBy,
+          thumbnail: property.thumbnail || {},
+          galleryImages: Array.isArray(property.galleryImages) ? property.galleryImages : [],
           createdAt: property.createdAt,
-          imagesCount: img.imagesCount,
-          coverImage: img.coverImage,
         },
       });
     } catch {

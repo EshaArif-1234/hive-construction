@@ -1,37 +1,8 @@
 import Head from "next/head";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InfoCard from "@/components/InfoCard";
 import StatusBadge from "@/components/StatusBadge";
-
-const MOCK_INVESTMENTS = [
-  {
-    id: "invst-001",
-    propertyId: "islamabad-01",
-    propertyTitle: "Islamabad Land + Construction",
-    status: "In Progress",
-    contribution: 350000,
-    investedOn: "2026-02-14",
-    totalPropertyCost: 12500000,
-    currentMarketValue: 13200000,
-    sold: false,
-    soldWithinOneYear: false,
-    withdrawnEarly: false,
-  },
-  {
-    id: "invst-002",
-    propertyId: "lahore-01",
-    propertyTitle: "Lahore Residential Build",
-    status: "Available",
-    contribution: 750000,
-    investedOn: "2026-01-12",
-    totalPropertyCost: 8500000,
-    currentMarketValue: 9200000,
-    sold: false,
-    soldWithinOneYear: true,
-    withdrawnEarly: false,
-  },
-];
 
 function formatPKR(amount) {
   const n = Number(amount);
@@ -64,22 +35,63 @@ function calcProfit(contribution, totalCost, currentMarketValue) {
   return { investorProfit, hiveProfit, totalProfit };
 }
 
+function formatListingStatus(status) {
+  const value = String(status || "").toLowerCase();
+  if (value === "active") return "Active";
+  if (value === "paused") return "Paused";
+  if (value === "completed") return "Completed";
+  if (value === "archived") return "Archived";
+  return "Draft";
+}
+
 export default function InvestorInvestmentsPage() {
   const [query, setQuery] = useState("");
+  const [investments, setInvestments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch("/api/investments");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) setError(data?.message || "Unable to load investments.");
+          if (!cancelled) setInvestments([]);
+          return;
+        }
+        if (!cancelled) setInvestments(Array.isArray(data?.investments) ? data.investments : []);
+      } catch {
+        if (!cancelled) {
+          setError("Unable to load investments.");
+          setInvestments([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return MOCK_INVESTMENTS;
+    if (!q) return investments;
 
-    return MOCK_INVESTMENTS.filter((x) => {
-      return `${x.propertyId} ${x.propertyTitle} ${x.status} ${x.id}`
+    return investments.filter((x) => {
+      return `${x.propertyId} ${x.propertyTitle} ${x.propertyStatus} ${x.status} ${x.id}`
         .toLowerCase()
         .includes(q);
     });
-  }, [query]);
+  }, [query, investments]);
 
   const totals = useMemo(() => {
-    const totalContributed = filtered.reduce((sum, x) => sum + x.contribution, 0);
+    const totalContributed = filtered.reduce((sum, x) => sum + Number(x.amount || 0), 0);
     return { totalContributed };
   }, [filtered]);
 
@@ -100,7 +112,6 @@ export default function InvestorInvestmentsPage() {
             </h1>
             <p className="mt-2 text-sm leading-6 text-hive-slate">
               View contribution amount, share percentage, and profit calculations.
-              (Mock data)
             </p>
           </div>
 
@@ -134,21 +145,33 @@ export default function InvestorInvestmentsPage() {
           </div>
         </div>
 
+        {error ? (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="mt-4 rounded-xl border border-hive-taupe/20 bg-hive-light p-3 text-sm text-hive-slate">
+            Loading investments...
+          </div>
+        ) : null}
+
         <div className="mt-6 grid gap-4">
           {filtered.map((x) => {
             const sharePercent = calcInvestorSharePercent(
-              x.contribution,
+              x.amount,
               x.totalPropertyCost
             );
 
             const profit = calcProfit(
-              x.contribution,
+              x.amount,
               x.totalPropertyCost,
               x.currentMarketValue
             );
 
             const principalProtected = true;
-            const principalReturn = x.contribution;
+            const principalReturn = Number(x.amount || 0);
 
             return (
               <div
@@ -164,15 +187,15 @@ export default function InvestorInvestmentsPage() {
                       {x.propertyId} • Investment ID: {x.id}
                     </p>
                   </div>
-                  <StatusBadge status={x.status} />
+                  <StatusBadge status={formatListingStatus(x.propertyStatus)} />
                 </div>
 
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <InfoCard label="Your contribution" value={formatPKR(x.contribution)} />
+                  <InfoCard label="Your contribution" value={formatPKR(x.amount)} />
                   <InfoCard
                     label="Your share (est.)"
                     value={`${sharePercent.toFixed(2)}%`}
-                    subtext="Based on contribution / total cost"
+                    subtext="Based on investment / total cost"
                   />
                   <InfoCard
                     label="Current market value"
