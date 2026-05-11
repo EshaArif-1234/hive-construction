@@ -20,32 +20,32 @@ export default function PropertyCard({
       href={detailsHref}
       className="group block overflow-hidden rounded-2xl border border-hive-taupe/20 bg-hive-light shadow-sm transition-colors hover:border-hive-taupe/60"
     >
-      <div className="relative h-44 w-full bg-gradient-to-br from-hive-slate to-hive-charcoal">
+      <div className="relative isolate h-44 w-full overflow-hidden bg-zinc-100">
         {imageSrc ? (
           String(imageSrc).startsWith("/api/") ? (
             <img
               src={imageSrc}
               alt={primaryText ?? "Property image"}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 z-0 h-full w-full object-cover"
             />
           ) : (
             <Image
               src={imageSrc}
               alt={primaryText ?? "Property image"}
               fill
-              className="object-cover"
+              className="z-0 object-cover"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
           )
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm font-medium text-hive-light/80">
+          <div className="absolute inset-0 z-0 flex items-center justify-center">
+            <span className="text-sm font-medium text-hive-slate/50">
               {imageLabel ?? "Property Image"}
             </span>
           </div>
         )}
 
-        <div className="absolute left-4 top-4">
+        <div className="absolute left-4 top-4 z-10">
           <StatusBadge status={statusText} />
         </div>
       </div>

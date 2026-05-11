@@ -12,16 +12,10 @@ function svgDataUri(label) {
   const safe = String(label ?? "Property").slice(0, 48);
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#111111"/>
-      <stop offset="1" stop-color="#000000"/>
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="800" fill="url(#g)"/>
+  <rect width="1200" height="800" fill="#f4f4f5"/>
   <text x="60" y="120" fill="#D4AF37" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700">Hive Construction</text>
-  <text x="60" y="190" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="34" opacity="0.9">${safe}</text>
-  <text x="60" y="248" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="18" opacity="0.7">Image placeholder</text>
+  <text x="60" y="190" fill="#27272a" font-family="Arial, Helvetica, sans-serif" font-size="34">${safe}</text>
+  <text x="60" y="248" fill="#71717a" font-family="Arial, Helvetica, sans-serif" font-size="18">Image placeholder</text>
 </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
@@ -247,20 +241,21 @@ export default function PropertyDetailsPage() {
               <div className="grid gap-8 lg:grid-cols-3">
                 <div className="lg:col-span-2">
                   <div className="grid gap-4">
-                    <div className="relative overflow-hidden rounded-2xl bg-hive-charcoal">
+                    <div className="relative isolate overflow-hidden rounded-2xl bg-zinc-100">
                       <div className="relative h-64 w-full sm:h-80">
-                        {String(activeImage).startsWith("/api/") ? (
+                        {String(activeImage).startsWith("/api/") ||
+                        String(activeImage).startsWith("data:") ? (
                           <img
                             src={activeImage}
                             alt={`${property?.title ?? "Property"} image`}
-                            className="absolute inset-0 h-full w-full object-cover"
+                            className="absolute inset-0 z-0 h-full w-full object-cover"
                           />
                         ) : (
                           <Image
                             src={activeImage}
                             alt={`${property?.title ?? "Property"} image`}
                             fill
-                            className="object-cover"
+                            className="z-0 object-cover"
                             sizes="(max-width: 1024px) 100vw, 66vw"
                           />
                         )}
@@ -285,11 +280,11 @@ export default function PropertyDetailsPage() {
                             }
                             aria-label={`View image ${idx + 1}`}
                           >
-                            <div className="relative h-16 w-full">
+                            <div className="relative h-16 w-full overflow-hidden bg-zinc-100">
                               <img
                                 src={src}
                                 alt={`Property image ${idx + 1}`}
-                                className="absolute inset-0 h-full w-full object-cover"
+                                className="absolute inset-0 z-0 h-full w-full object-cover"
                               />
                             </div>
                           </button>
