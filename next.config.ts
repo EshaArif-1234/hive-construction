@@ -6,9 +6,10 @@ const DEFAULT_ADMIN_PASSWORD = "hive@123456";
 if (process.env.NODE_ENV === "development") {
   const adminEmail = process.env.ADMIN_SEED_EMAIL || DEFAULT_ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_SEED_PASSWORD || DEFAULT_ADMIN_PASSWORD;
-  console.log("[Hive Admin] Seeded / default login (matches DB ensureDefaultAdmin)");
+  console.log("[Hive Admin] Default seed credentials (used only when admin account is first created):");
   console.log(`[Hive Admin] email: ${adminEmail}`);
-  console.log(`[Hive Admin] password: ${adminPassword}`);
+  console.log(`[Hive Admin] seed password: ${adminPassword}`);
+  console.log("[Hive Admin] If you changed the password in Settings, use that new password — it is not shown here (only a bcrypt hash is stored in MongoDB).");
 }
 
 const nextConfig: NextConfig = {

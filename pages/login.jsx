@@ -2,6 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
+import PasswordInput from "../components/PasswordInput";
 
 function RoleCard({ title, description, selected, onClick }) {
   return (
@@ -223,29 +224,27 @@ export default function LoginPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="text-sm font-semibold text-hive-charcoal">
-                      Password
-                    </label>
-                    <input
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      type="password"
-                      className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                      placeholder={selectedRole === "admin" ? "admin" : "••••••••"}
-                      autoComplete="current-password"
-                    />
-                    {selectedRole === "investor" ? (
-                      <div className="mt-2 text-right">
-                        <Link
-                          href="/forgot-password"
-                          className="text-sm font-semibold text-hive-charcoal underline decoration-hive-taupe/60 hover:text-hive-taupe"
-                        >
-                          Forgot password?
-                        </Link>
-                      </div>
-                    ) : null}
-                  </div>
+                  <PasswordInput
+                    label="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={selectedRole === "admin" ? "admin" : "••••••••"}
+                    autoComplete="current-password"
+                  />
+                  {selectedRole === "investor" || selectedRole === "admin" ? (
+                    <div className="text-right">
+                      <Link
+                        href={
+                          selectedRole === "admin"
+                            ? "/forgot-password?role=admin"
+                            : "/forgot-password"
+                        }
+                        className="text-sm font-semibold text-hive-charcoal underline decoration-hive-taupe/60 hover:text-hive-taupe"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                  ) : null}
 
                   {selectedRole ? (
                     <div className="rounded-xl border border-hive-taupe/20 bg-hive-light p-3 text-sm text-hive-slate">

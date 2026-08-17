@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/dbConnect";
+import Admin from "@/models/Admin";
 import Investor from "@/models/Investor";
 import { verifyPasswordResetToken } from "@/lib/passwordResetJwt";
 
@@ -25,14 +26,26 @@ export default async function handler(req, res) {
 
     await dbConnect();
 
-    const updated = await Investor.findByIdAndUpdate(
-      String(payload.sub),
-      { passwordHash },
-      { new: true }
-    ).select("_id");
+    if (payload.role === "admin") {
+      const updated = await Admin.findByIdAndUpdate(
+        String(payload.sub),
+        { passwordHash },
+        { new: true }
+      ).select("_id");
 
-    if (!updated) {
-      return res.status(400).json({ message: "Account not found." });
+      if (!updated) {
+        return res.status(400).json({ message: "Account not found." });
+      }
+    } else {
+      const updated = await Investor.findByIdAndUpdate(
+        String(payload.sub),
+        { passwordHash },
+        { new: true }
+      ).select("_id");
+
+      if (!updated) {
+        return res.status(400).json({ message: "Account not found." });
+      }
     }
 
     return res.status(200).json({ message: "Password updated. You can sign in with your new password." });

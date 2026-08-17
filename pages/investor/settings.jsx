@@ -1,5 +1,6 @@
 import Head from "next/head";
 import { useState } from "react";
+import PasswordInput from "../../components/PasswordInput";
 
 export default function InvestorSettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -38,41 +39,24 @@ export default function InvestorSettingsPage() {
             </h2>
 
             <form onSubmit={onChangePassword} className="mt-4 grid gap-4">
-              <div>
-                <label className="text-sm font-semibold text-hive-charcoal">
-                  Current password
-                </label>
-                <input
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  type="password"
-                  className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-hive-charcoal">
-                  New password
-                </label>
-                <input
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  type="password"
-                  className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-hive-charcoal">
-                  Confirm new password
-                </label>
-                <input
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  type="password"
-                  className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                />
-              </div>
+              <PasswordInput
+                label="Current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <PasswordInput
+                label="New password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              <PasswordInput
+                label="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
 
               <button
                 type="submit"

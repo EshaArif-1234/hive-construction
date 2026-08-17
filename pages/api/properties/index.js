@@ -50,7 +50,13 @@ export default async function handler(req, res) {
         };
       }),
     });
-  } catch {
-    return res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    console.error("[api/properties]", err);
+    return res.status(500).json({
+      message:
+        process.env.NODE_ENV === "development"
+          ? `Database error: ${err?.message || "Server error"}`
+          : "Server error",
+    });
   }
 }

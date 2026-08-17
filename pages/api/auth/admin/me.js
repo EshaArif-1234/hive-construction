@@ -11,8 +11,10 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     admin: {
-      email: "hiveconstruction@admin.com",
+      email: payload.sub || "",
       role: "admin",
     },
   });
 }
+
+// Profile details (including recovery email): GET/PATCH /api/auth/admin/profile

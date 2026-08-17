@@ -1,9 +1,8 @@
 import Head from "next/head";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-
-const STORAGE_EMAIL = "hive_fp_email";
-const STORAGE_RESET = "hive_fp_reset_token";
+import { useRouter } from "next/router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import PasswordInput from "../components/PasswordInput";
 
 const steps = {
   email: "email",
@@ -12,7 +11,21 @@ const steps = {
   success: "success",
 };
 
+function storageKey(suffix, role) {
+  return `hive_fp_${suffix}_${role}`;
+}
+
 export default function ForgotPasswordPage() {
+  const router = useRouter();
+  const role = useMemo(() => {
+    const r = router.query.role;
+    return r === "admin" ? "admin" : "investor";
+  }, [router.query.role]);
+
+  const isAdmin = role === "admin";
+  const loginHref = isAdmin ? "/login?role=admin" : "/login?role=investor";
+  const accountLabel = isAdmin ? "Admin account" : "Investor account";
+
   const [step, setStep] = useState(steps.email);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -25,29 +38,43 @@ export default function ForgotPasswordPage() {
   const [resendLoading, setResendLoading] = useState(false);
 
   useEffect(() => {
+    if (!router.isReady) return;
     if (typeof window === "undefined") return;
-    const storedEmail = sessionStorage.getItem(STORAGE_EMAIL);
-    const storedToken = sessionStorage.getItem(STORAGE_RESET);
-    if (storedEmail) setEmail(storedEmail);
+
+    const storedEmail = sessionStorage.getItem(storageKey("email", role));
+    const storedToken = sessionStorage.getItem(storageKey("reset", role));
+
+    setStep(steps.email);
+    setEmail(storedEmail || "");
+    setOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setError("");
+
     if (storedToken) {
       setResetToken(storedToken);
       setStep(steps.password);
+    } else {
+      setResetToken("");
     }
-  }, []);
+  }, [router.isReady, role]);
 
-  const persistEmail = useCallback((value) => {
-    setEmail(value);
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem(STORAGE_EMAIL, value);
-    }
-  }, []);
+  const persistEmail = useCallback(
+    (value) => {
+      setEmail(value);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(storageKey("email", role), value);
+      }
+    },
+    [role]
+  );
 
   const clearFpStorage = useCallback(() => {
     if (typeof window !== "undefined") {
-      sessionStorage.removeItem(STORAGE_EMAIL);
-      sessionStorage.removeItem(STORAGE_RESET);
+      sessionStorage.removeItem(storageKey("email", role));
+      sessionStorage.removeItem(storageKey("reset", role));
     }
-  }, []);
+  }, [role]);
 
   const onSendEmail = async (e) => {
     e.preventDefault();
@@ -62,7 +89,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalized }),
+        body: JSON.stringify({ email: normalized, role }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -97,7 +124,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch("/api/auth/verify-forgot-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalized, otp: digits.padStart(4, "0") }),
+        body: JSON.stringify({ email: normalized, otp: digits.padStart(4, "0"), role }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -111,7 +138,7 @@ export default function ForgotPasswordPage() {
       }
       setResetToken(token);
       if (typeof window !== "undefined") {
-        sessionStorage.setItem(STORAGE_RESET, token);
+        sessionStorage.setItem(storageKey("reset", role), token);
       }
       setNewPassword("");
       setConfirmPassword("");
@@ -136,7 +163,7 @@ export default function ForgotPasswordPage() {
     }
     const token =
       resetToken ||
-      (typeof window !== "undefined" ? sessionStorage.getItem(STORAGE_RESET) : "");
+      (typeof window !== "undefined" ? sessionStorage.getItem(storageKey("reset", role)) : "");
     if (!token) {
       setError("Session expired. Start over from the login page.");
       return;
@@ -175,7 +202,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalized }),
+        body: JSON.stringify({ email: normalized, role }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -208,7 +235,7 @@ export default function ForgotPasswordPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
-                  Investor account
+                  {accountLabel}
                 </p>
                 <h1 className="mt-3 text-2xl font-semibold tracking-tight text-hive-charcoal sm:text-3xl">
                   {step === steps.email && "Reset password"}
@@ -218,17 +245,19 @@ export default function ForgotPasswordPage() {
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-hive-slate">
                   {step === steps.email &&
-                    "Enter the email you used to register. We will send a 4-digit code."}
+                    (isAdmin
+                      ? "Enter any real email inbox you can access. We will send a 4-digit code there to reset the Hive admin password."
+                      : "Enter the email you used to register. We will send a 4-digit code.")}
                   {step === steps.otp &&
                     "We emailed a 4-digit code. It expires in 15 minutes."}
                   {step === steps.password &&
-                    "Choose a new password for your investor account."}
+                    `Choose a new password for your ${isAdmin ? "admin" : "investor"} account.`}
                   {step === steps.success &&
                     "Your password was changed. You can sign in with the new password."}
                 </p>
               </div>
               <Link
-                href="/login?role=investor"
+                href={loginHref}
                 className="rounded-md border border-hive-charcoal px-4 py-2 text-sm font-semibold text-hive-charcoal transition-colors hover:border-hive-taupe hover:text-hive-taupe"
               >
                 Back to login
@@ -245,7 +274,7 @@ export default function ForgotPasswordPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                    placeholder="you@example.com"
+                    placeholder={isAdmin ? "admin@example.com" : "you@example.com"}
                   />
                 </div>
                 {error ? (
@@ -271,17 +300,13 @@ export default function ForgotPasswordPage() {
             {step === steps.otp ? (
               <form onSubmit={onVerifyOtp} className="mt-8 grid gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">
-                    4-digit code
-                  </label>
+                  <label className="text-sm font-semibold text-hive-charcoal">4-digit code</label>
                   <input
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength={4}
                     value={otp}
-                    onChange={(e) =>
-                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))
-                    }
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
                     className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-3 text-center text-2xl font-semibold tracking-[0.5em] text-hive-charcoal outline-none focus:border-hive-taupe"
                     placeholder="••••"
                   />
@@ -328,30 +353,18 @@ export default function ForgotPasswordPage() {
 
             {step === steps.password ? (
               <form onSubmit={onResetPassword} className="mt-8 grid gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">
-                    New password
-                  </label>
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">
-                    Confirm password
-                  </label>
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                  />
-                </div>
+                <PasswordInput
+                  label="New password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <PasswordInput
+                  label="Confirm password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
                 {error ? (
                   <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                     {error}
@@ -378,7 +391,7 @@ export default function ForgotPasswordPage() {
                   You can now sign in with your new password.
                 </div>
                 <Link
-                  href="/login?role=investor"
+                  href={loginHref}
                   className="inline-flex items-center justify-center rounded-md bg-hive-charcoal px-5 py-2.5 text-sm font-semibold text-hive-light transition-colors hover:text-hive-taupe"
                 >
                   Back to login

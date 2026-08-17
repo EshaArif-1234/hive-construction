@@ -1,6 +1,8 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
 
+  await import("./lib/setupMongoDns");
+
   try {
     const { ensureDefaultAdmin } = await import("./lib/ensureDefaultAdmin");
     await ensureDefaultAdmin();

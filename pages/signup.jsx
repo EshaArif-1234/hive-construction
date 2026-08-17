@@ -2,6 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
+import PasswordInput from "../components/PasswordInput";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -13,8 +14,6 @@ export default function SignupPage() {
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -192,61 +191,20 @@ export default function SignupPage() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">
-                    Password
-                  </label>
-                  <div className="relative mt-2">
-                    <input
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      type={showPassword ? "text" : "password"}
-                      className="w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 pr-10 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute inset-y-0 right-2 inline-flex items-center text-hive-slate"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? (
-                        <span className="text-xs font-semibold">Hide</span>
-                      ) : (
-                        <span className="text-xs font-semibold">Show</span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-hive-charcoal">
-                    Confirm Password
-                  </label>
-                  <div className="relative mt-2">
-                    <input
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      type={showConfirmPassword ? "text" : "password"}
-                      className="w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 pr-10 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword((v) => !v)}
-                      className="absolute inset-y-0 right-2 inline-flex items-center text-hive-slate"
-                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
-                    >
-                      {showConfirmPassword ? (
-                        <span className="text-xs font-semibold">Hide</span>
-                      ) : (
-                        <span className="text-xs font-semibold">Show</span>
-                      )}
-                    </button>
-                  </div>
-                </div>
+                <PasswordInput
+                  label="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+                <PasswordInput
+                  label="Confirm Password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
               </div>
 
               {success ? (
