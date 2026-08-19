@@ -1,30 +1,61 @@
 import Head from "next/head";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import FeatureItem from "@/components/FeatureItem";
 import PropertyCard from "@/components/PropertyCard";
 import Section from "@/components/Section";
 import StepItem from "@/components/StepItem";
 import WebsiteFooter from "@/components/WebsiteFooter";
+import { mapPublicPropertyForCard } from "@/lib/mapPublicPropertyForCard";
 
-const featuredProperties = [
-  {
-    imageLabel: "Property Image",
-    location: "Lahore • Residential Build",
-    status: "Available",
-  },
-  {
-    imageLabel: "Property Image",
-    location: "Islamabad • Land + Construction",
-    status: "Available",
-  },
-  {
-    imageLabel: "Property Image",
-    location: "Karachi • Residential Sale",
-    status: "Sold",
-  },
-];
+const FEATURED_LIMIT = 3;
+
+async function fetchPublicProperties(featuredOnly = false) {
+  const query = featuredOnly ? "?featured=true" : "";
+  const res = await fetch(`/api/properties${query}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.message || "Unable to load properties.");
+  }
+  const list = Array.isArray(data?.properties) ? data.properties : [];
+  return list.map(mapPublicPropertyForCard);
+}
 
 export default function HomePage() {
+  const [featuredProperties, setFeaturedProperties] = useState([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+  const [featuredError, setFeaturedError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      setFeaturedError("");
+      setLoadingFeatured(true);
+      try {
+        let list = await fetchPublicProperties(true);
+        if (list.length === 0) {
+          list = await fetchPublicProperties(false);
+        }
+        if (!cancelled) {
+          setFeaturedProperties(list.slice(0, FEATURED_LIMIT));
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setFeaturedError(e?.message || "Unable to load featured properties.");
+          setFeaturedProperties([]);
+        }
+      } finally {
+        if (!cancelled) setLoadingFeatured(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <>
       <Head>
@@ -40,9 +71,8 @@ export default function HomePage() {
         <link rel="canonical" href="/" />
       </Head>
 
-      <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid items-center gap-10 lg:grid-cols-2">
+      <section>
+        <div className="grid items-center gap-10 lg:grid-cols-2">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
                 Construction Investment Platform
@@ -110,7 +140,6 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </div>
       </section>
 
       <Section
@@ -202,18 +231,75 @@ export default function HomePage() {
         id="featured-properties"
         eyebrow="Featured Properties"
         title="Explore active and completed opportunities"
-        description="A curated list of opportunities showing availability and key details."
+        description="Live listings from the platform — funding progress, costs, and profit split update as investments are recorded."
       >
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredProperties.map((p) => (
-            <PropertyCard
-              key={`${p.location}-${p.status}`}
-              imageLabel={p.imageLabel}
-              location={p.location}
-              status={p.status}
-            />
-          ))}
-        </div>
+        {featuredError ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {featuredError}
+          </div>
+        ) : null}
+
+        {loadingFeatured ? (
+          <div className="rounded-xl border border-hive-taupe/20 bg-hive-light p-6 text-sm text-hive-slate">
+            Loading featured properties...
+          </div>
+        ) : featuredProperties.length === 0 ? (
+          <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-10 text-center">
+            <p className="text-base font-semibold text-hive-charcoal">No properties available yet</p>
+            <p className="mt-2 text-sm text-hive-slate">
+              Check back soon or browse the full listings page when properties are published.
+            </p>
+            <Link
+              href="/properties"
+              className="mt-6 inline-flex items-center justify-center rounded-md bg-hive-charcoal px-6 py-3 text-sm font-semibold text-hive-light transition-colors hover:text-hive-taupe"
+            >
+              View Properties
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {featuredProperties.map((p) => (
+                <PropertyCard
+                  key={p.id}
+                  id={p.id}
+                  title={p.title}
+                  location={p.location}
+                  totalCost={p.totalCost}
+                  investorProfitShare={p.investorProfitShare}
+                  hiveProfitShare={p.hiveProfitShare}
+                  fundingProgressPct={p.fundingProgressPct}
+                  propertyType={p.type}
+                  riskLevel={p.riskLevel}
+                  investorFundingRequired={p.investorFundingRequired}
+                  minimumInvestment={p.minimumInvestment}
+                  fundingCollected={p.fundingCollected}
+                  isFullyFunded={p.isFullyFunded}
+                  featured={p.featured}
+                  bedrooms={p.bedrooms}
+                  bathrooms={p.bathrooms}
+                  areaSize={p.areaSize}
+                  constructionStatus={p.constructionStatus}
+                  imageSrc={
+                    p?.thumbnail?.url ||
+                    (Array.isArray(p?.galleryImages) && p.galleryImages[0]?.url
+                      ? p.galleryImages[0].url
+                      : "")
+                  }
+                  imageLabel="Property Image"
+                />
+              ))}
+            </div>
+            <div className="mt-10 flex justify-center">
+              <Link
+                href="/properties"
+                className="inline-flex items-center justify-center rounded-md border border-hive-taupe bg-hive-light px-6 py-3 text-sm font-semibold text-hive-charcoal transition-colors hover:bg-hive-taupe"
+              >
+                View all properties
+              </Link>
+            </div>
+          </>
+        )}
       </Section>
 
       <Section

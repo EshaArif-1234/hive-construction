@@ -1,5 +1,6 @@
 import Head from "next/head";
 import { useEffect, useMemo, useRef, useState } from "react";
+import AdminPropertyViewModal from "@/components/AdminPropertyViewModal";
 import StatusBadge from "@/components/StatusBadge";
 
 function formatStatus(status) {
@@ -16,6 +17,44 @@ function formatCurrency(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "";
   return `PKR ${n.toLocaleString()}`;
+}
+
+function appendPropertyFormFields(fd, fields) {
+  fd.append("title", fields.title);
+  fd.append("type", fields.type);
+  fd.append("city", fields.city);
+  fd.append("address", fields.address);
+  fd.append("description", fields.description);
+  fd.append("totalCost", String(fields.totalCost));
+  fd.append("constructionStatus", fields.constructionStatus);
+  fd.append("listingStatus", fields.listingStatus);
+  fd.append("expectedSellingPrice", String(fields.expectedSellingPrice));
+  fd.append("investorFundingRequired", String(fields.investorFundingRequired));
+  fd.append("hiveContribution", String(fields.hiveContribution));
+  fd.append("expectedProfitPercentage", String(fields.expectedProfitPercentage));
+  fd.append("minimumInvestment", String(fields.minimumInvestment));
+  fd.append("investorProfitShare", String(fields.investorProfitShare));
+  fd.append("hiveProfitShare", String(fields.hiveProfitShare));
+  fd.append("expectedCompletionDuration", String(fields.expectedCompletionDuration));
+  fd.append("expectedSellingDuration", String(fields.expectedSellingDuration));
+  fd.append("fundingCollected", String(fields.fundingCollected));
+  fd.append("fundingProgressPct", String(fields.fundingProgressPct));
+  fd.append("expectedAnnualRoiPct", String(fields.expectedAnnualRoiPct));
+  fd.append("riskLevel", fields.riskLevel);
+  fd.append("bedrooms", String(fields.bedrooms));
+  fd.append("bathrooms", String(fields.bathrooms));
+  fd.append("areaSize", String(fields.areaSize));
+  fd.append("garage", String(fields.garage));
+  fd.append("floorCount", String(fields.floorCount));
+  fd.append("nearbySchool", String(fields.nearbySchool));
+  fd.append("nearbyHospital", String(fields.nearbyHospital));
+  fd.append("nearbyMarket", String(fields.nearbyMarket));
+  fd.append("nearbyMosque", String(fields.nearbyMosque));
+  fd.append("investorProtectionEnabled", String(fields.investorProtectionEnabled));
+  fd.append("earlyWithdrawalAllowed", String(fields.earlyWithdrawalAllowed));
+  fd.append("earlyWithdrawalProfit", fields.earlyWithdrawalProfit);
+  fd.append("featured", String(fields.featured));
+  fd.append("createdBy", fields.createdBy);
 }
 
 export default function AdminPropertiesPage() {
@@ -49,10 +88,8 @@ export default function AdminPropertiesPage() {
   const [description, setDescription] = useState("");
   const [totalCost, setTotalCost] = useState("");
   const [requiredInvestorFunding, setRequiredInvestorFunding] = useState("");
-  const [minimumInvestmentAllowed, setMinimumInvestmentAllowed] = useState("");
-  const [expectedSalePrice, setExpectedSalePrice] = useState("");
   const [hiveContribution, setHiveContribution] = useState("");
-  const [expectedProfitPct, setExpectedProfitPct] = useState("");
+  const [minimumInvestmentAllowed, setMinimumInvestmentAllowed] = useState("");
   const [investorProfitSharePct, setInvestorProfitSharePct] = useState("75");
   const [hiveProfitSharePct, setHiveProfitSharePct] = useState("25");
   const [constructionStatus, setConstructionStatus] = useState("not-started");
@@ -63,9 +100,6 @@ export default function AdminPropertiesPage() {
   const [earlyWithdrawalProfitRule, setEarlyWithdrawalProfitRule] = useState("no-profit");
   const [listingStatus, setListingStatus] = useState("draft");
   const [featuredProperty, setFeaturedProperty] = useState("no");
-  const [fundingProgressPct, setFundingProgressPct] = useState("");
-  const [currentFundingCollected, setCurrentFundingCollected] = useState("");
-  const [expectedAnnualRoiPct, setExpectedAnnualRoiPct] = useState("");
   const [riskLevel, setRiskLevel] = useState("medium");
   const [bedrooms, setBedrooms] = useState("");
   const [bathrooms, setBathrooms] = useState("");
@@ -78,23 +112,60 @@ export default function AdminPropertiesPage() {
   const [nearbyMosque, setNearbyMosque] = useState("no");
   const [thumbnailImage, setThumbnailImage] = useState(null);
   const [galleryImages, setGalleryImages] = useState([]);
+  const [existingMedia, setExistingMedia] = useState({ thumbnail: null, gallery: [] });
 
   const [deletingId, setDeletingId] = useState("");
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewProperty, setViewProperty] = useState(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState("");
   const thumbnailInputRef = useRef(null);
   const galleryInputRef = useRef(null);
-  const [imagePreviews, setImagePreviews] = useState([]);
+  const [mediaPreviews, setMediaPreviews] = useState([]);
 
   useEffect(() => {
-    const files = [thumbnailImage, ...galleryImages].filter(Boolean);
-    const entries = files.map((file) => ({
-      url: URL.createObjectURL(file),
-      name: file.name,
-    }));
-    setImagePreviews(entries);
+    const entries = [];
+
+    if (thumbnailImage) {
+      entries.push({
+        url: URL.createObjectURL(thumbnailImage),
+        label: thumbnailImage.name,
+        revoke: true,
+      });
+    } else if (existingMedia.thumbnail?.url) {
+      entries.push({
+        url: existingMedia.thumbnail.url,
+        label: "Current thumbnail",
+        revoke: false,
+      });
+    }
+
+    if (galleryImages.length > 0) {
+      galleryImages.forEach((file) => {
+        entries.push({
+          url: URL.createObjectURL(file),
+          label: file.name,
+          revoke: true,
+        });
+      });
+    } else {
+      existingMedia.gallery.forEach((img, idx) => {
+        if (!img?.url) return;
+        entries.push({
+          url: img.url,
+          label: `Gallery ${idx + 1}`,
+          revoke: false,
+        });
+      });
+    }
+
+    setMediaPreviews(entries);
     return () => {
-      entries.forEach((e) => URL.revokeObjectURL(e.url));
+      entries.forEach((entry) => {
+        if (entry.revoke) URL.revokeObjectURL(entry.url);
+      });
     };
-  }, [thumbnailImage, galleryImages]);
+  }, [thumbnailImage, galleryImages, existingMedia]);
 
   const load = async () => {
     setError("");
@@ -148,6 +219,41 @@ export default function AdminPropertiesPage() {
     load();
   }, []);
 
+  const openViewModal = async (p) => {
+    const id = String(p?.id || "");
+    if (!id) return;
+
+    setShowViewModal(true);
+    setViewProperty(null);
+    setViewError("");
+    setViewLoading(true);
+
+    try {
+      const res = await fetch(`/api/admin/properties/${id}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setViewError(data?.message || "Unable to load property.");
+        return;
+      }
+      setViewProperty(data?.property || null);
+    } catch {
+      setViewError("Unable to load property.");
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const closeViewModal = () => {
+    setShowViewModal(false);
+    setViewProperty(null);
+    setViewError("");
+  };
+
+  const editFromView = (property) => {
+    closeViewModal();
+    openEditModal(property);
+  };
+
   const openModal = () => {
     setModalError("");
     setModalTab("basic");
@@ -160,10 +266,8 @@ export default function AdminPropertiesPage() {
     setDescription("");
     setTotalCost("");
     setRequiredInvestorFunding("");
-    setMinimumInvestmentAllowed("");
-    setExpectedSalePrice("");
     setHiveContribution("");
-    setExpectedProfitPct("");
+    setMinimumInvestmentAllowed("");
     setInvestorProfitSharePct("75");
     setHiveProfitSharePct("25");
     setConstructionStatus("not-started");
@@ -174,9 +278,6 @@ export default function AdminPropertiesPage() {
     setEarlyWithdrawalProfitRule("no-profit");
     setListingStatus("draft");
     setFeaturedProperty("no");
-    setFundingProgressPct("");
-    setCurrentFundingCollected("");
-    setExpectedAnnualRoiPct("");
     setRiskLevel("medium");
     setBedrooms("");
     setBathrooms("");
@@ -189,6 +290,7 @@ export default function AdminPropertiesPage() {
     setNearbyMosque("no");
     setThumbnailImage(null);
     setGalleryImages([]);
+    setExistingMedia({ thumbnail: null, gallery: [] });
     setShowModal(true);
   };
 
@@ -212,12 +314,8 @@ export default function AdminPropertiesPage() {
     setRequiredInvestorFunding(
       String(pick(p?.investorFundingRequired, p?.requiredInvestorFunding, p?.investorContribution, ""))
     );
-    setMinimumInvestmentAllowed(String(pick(p?.minimumInvestment, p?.minimumInvestmentAllowed, "")));
-    setExpectedSalePrice(String(pick(p?.expectedSellingPrice, p?.expectedSalePrice, "")));
     setHiveContribution(String(pick(p?.hiveContribution, 0)));
-    setExpectedProfitPct(
-      String(pick(p?.expectedProfitPercentage, p?.expectedProfitPct, p?.expectedProfitMaxPct, ""))
-    );
+    setMinimumInvestmentAllowed(String(pick(p?.minimumInvestment, p?.minimumInvestmentAllowed, "")));
     setInvestorProfitSharePct(String(pick(p?.investorProfitShare, p?.investorProfitSharePct, "75")));
     setHiveProfitSharePct(String(pick(p?.hiveProfitShare, p?.hiveProfitSharePct, "25")));
     setConstructionStatus(String(p?.constructionStatus || "not-started"));
@@ -232,9 +330,6 @@ export default function AdminPropertiesPage() {
     setEarlyWithdrawalProfitRule(String(pick(p?.earlyWithdrawalProfit, p?.earlyWithdrawalProfitRule, "no-profit")));
     setListingStatus(normalizeListingStatus(pick(p?.listingStatus, "draft")));
     setFeaturedProperty(pick(p?.featured, p?.featuredProperty, false) ? "yes" : "no");
-    setCurrentFundingCollected(String(pick(p?.fundingCollected, p?.currentFundingCollected, "")));
-    setFundingProgressPct(String(pick(p?.fundingProgressPct, "")));
-    setExpectedAnnualRoiPct(String(pick(p?.expectedAnnualRoiPct, "")));
     setRiskLevel(String(pick(p?.riskLevel, "medium")));
     setBedrooms(String(p?.bedrooms ?? ""));
     setBathrooms(String(p?.bathrooms ?? ""));
@@ -247,12 +342,33 @@ export default function AdminPropertiesPage() {
     setNearbyMosque(p?.nearbyMosque ? "yes" : "no");
     setThumbnailImage(null);
     setGalleryImages([]);
+    setExistingMedia({
+      thumbnail: p?.thumbnail?.url ? p.thumbnail : null,
+      gallery: Array.isArray(p?.galleryImages) ? p.galleryImages.filter((img) => img?.url) : [],
+    });
     setShowModal(true);
   };
 
   const closeModal = () => {
     if (submitting) return;
     setShowModal(false);
+  };
+
+  const getStoredFundingFields = () => {
+    if (!isEditMode || !editingId) {
+      return {
+        fundingCollected: 0,
+        fundingProgressPct: 0,
+        expectedAnnualRoiPct: 0,
+      };
+    }
+
+    const existing = properties.find((p) => String(p.id) === String(editingId));
+    return {
+      fundingCollected: Number(existing?.fundingCollected) || 0,
+      fundingProgressPct: Number(existing?.fundingProgressPct) || 0,
+      expectedAnnualRoiPct: Number(existing?.expectedAnnualRoiPct) || 0,
+    };
   };
 
   const handlePickThumbnail = (fileList) => {
@@ -288,18 +404,16 @@ export default function AdminPropertiesPage() {
     }
 
     const tc = Number(totalCost);
-    const esp = Number(expectedSalePrice);
     const hive = Number(hiveContribution);
+    const expectedSellingPrice = 0;
     const requiredFunding = Math.max(0, tc - hive);
-    const expectedProfit = Number(expectedProfitPct);
+    const expectedProfit = 0;
+    const storedFunding = getStoredFundingFields();
     const minimumInvestment = Number(minimumInvestmentAllowed);
     const investorShare = Number(investorProfitSharePct);
     const hiveShare = Number(hiveProfitSharePct);
     const completionDuration = Number(expectedCompletionDurationMonths);
     const sellingDuration = Number(expectedSellingDurationMonths);
-    const fundingProgress = Number(fundingProgressPct);
-    const currentFunding = Number(currentFundingCollected);
-    const annualRoi = Number(expectedAnnualRoiPct);
     const beds = Number(bedrooms);
     const baths = Number(bathrooms);
     const area = Number(areaSize);
@@ -321,18 +435,13 @@ export default function AdminPropertiesPage() {
 
     if (
       !Number.isFinite(tc) ||
-      !Number.isFinite(esp) ||
       !Number.isFinite(hive) ||
       !Number.isFinite(requiredFunding) ||
-      !Number.isFinite(expectedProfit) ||
       !Number.isFinite(minimumInvestment) ||
       !Number.isFinite(investorShare) ||
       !Number.isFinite(hiveShare) ||
       !Number.isFinite(completionDuration) ||
       !Number.isFinite(sellingDuration) ||
-      !Number.isFinite(fundingProgress) ||
-      !Number.isFinite(currentFunding) ||
-      !Number.isFinite(annualRoi) ||
       !Number.isFinite(beds) ||
       !Number.isFinite(baths) ||
       !Number.isFinite(area) ||
@@ -343,13 +452,13 @@ export default function AdminPropertiesPage() {
       return;
     }
 
-    if (Math.round(investorShare + hiveShare) !== 100) {
-      setModalError("Investor and Hive profit shares must total 100.");
+    if (minimumInvestment < 0) {
+      setModalError("Minimum investment cannot be negative.");
       return;
     }
 
-    if (fundingProgress < 0 || fundingProgress > 100) {
-      setModalError("Funding progress must be between 0 and 100.");
+    if (Math.round(investorShare + hiveShare) !== 100) {
+      setModalError("Investor and Hive profit shares must total 100.");
       return;
     }
 
@@ -365,29 +474,43 @@ export default function AdminPropertiesPage() {
     setSubmitting(true);
     try {
       const fd = new FormData();
-      fd.append("title", t);
-      fd.append("type", String(propertyType || "house"));
-      fd.append("city", loc);
-      fd.append("address", String(fullAddress || "").trim());
-      fd.append("description", String(description || "").trim());
-      fd.append("totalCost", String(tc));
-      fd.append("constructionStatus", String(constructionStatus || "not-started"));
-      fd.append("listingStatus", normalizeListingStatus(listingStatus));
-      fd.append("expectedSellingPrice", String(esp));
-      fd.append("investorFundingRequired", String(requiredFunding));
-      fd.append("hiveContribution", String(hive));
-      fd.append("expectedProfitPercentage", String(expectedProfit));
-      fd.append("minimumInvestment", String(minimumInvestment));
-      fd.append("investorProfitShare", String(investorShare));
-      fd.append("hiveProfitShare", String(hiveShare));
-      fd.append("expectedCompletionDuration", String(completionDuration));
-      fd.append("expectedSellingDuration", String(sellingDuration));
-      fd.append("fundingCollected", String(currentFunding));
-      fd.append("investorProtectionEnabled", String(investorProtectionEnabled === "yes"));
-      fd.append("earlyWithdrawalAllowed", String(earlyWithdrawalAllowed === "yes"));
-      fd.append("earlyWithdrawalProfit", String(earlyWithdrawalProfitRule || "no-profit"));
-      fd.append("featured", String(featuredProperty === "yes"));
-      fd.append("createdBy", "admin");
+      appendPropertyFormFields(fd, {
+        title: t,
+        type: String(propertyType || "house"),
+        city: loc,
+        address: String(fullAddress || "").trim(),
+        description: String(description || "").trim(),
+        totalCost: tc,
+        constructionStatus: String(constructionStatus || "not-started"),
+        listingStatus: normalizeListingStatus(listingStatus),
+        expectedSellingPrice,
+        investorFundingRequired: requiredFunding,
+        hiveContribution: hive,
+        expectedProfitPercentage: expectedProfit,
+        minimumInvestment,
+        investorProfitShare: investorShare,
+        hiveProfitShare: hiveShare,
+        expectedCompletionDuration: completionDuration,
+        expectedSellingDuration: sellingDuration,
+        fundingCollected: storedFunding.fundingCollected,
+        fundingProgressPct: storedFunding.fundingProgressPct,
+        expectedAnnualRoiPct: storedFunding.expectedAnnualRoiPct,
+        riskLevel: String(riskLevel || "medium"),
+        bedrooms: beds,
+        bathrooms: baths,
+        areaSize: area,
+        garage: garageCount,
+        floorCount: floors,
+        nearbySchool: nearbySchool === "yes",
+        nearbyHospital: nearbyHospital === "yes",
+        nearbyMarket: nearbyMarket === "yes",
+        nearbyMosque: nearbyMosque === "yes",
+        investorProtectionEnabled: investorProtectionEnabled === "yes",
+        earlyWithdrawalAllowed: earlyWithdrawalAllowed === "yes",
+        earlyWithdrawalProfit: String(earlyWithdrawalProfitRule || "no-profit"),
+        featured: featuredProperty === "yes",
+        createdBy: "admin",
+      });
       fd.append("images", thumbnailImage);
       Array.from(galleryImages).forEach((file) => {
         fd.append("images", file);
@@ -441,18 +564,16 @@ export default function AdminPropertiesPage() {
     }
 
     const tc = Number(totalCost);
-    const esp = Number(expectedSalePrice);
     const hive = Number(hiveContribution);
+    const expectedSellingPrice = 0;
     const requiredFunding = Math.max(0, tc - hive);
-    const expectedProfit = Number(expectedProfitPct);
+    const expectedProfit = 0;
+    const storedFunding = getStoredFundingFields();
     const minimumInvestment = Number(minimumInvestmentAllowed);
     const investorShare = Number(investorProfitSharePct);
     const hiveShare = Number(hiveProfitSharePct);
     const completionDuration = Number(expectedCompletionDurationMonths);
     const sellingDuration = Number(expectedSellingDurationMonths);
-    const fundingProgress = Number(fundingProgressPct);
-    const currentFunding = Number(currentFundingCollected);
-    const annualRoi = Number(expectedAnnualRoiPct);
     const beds = Number(bedrooms);
     const baths = Number(bathrooms);
     const area = Number(areaSize);
@@ -474,18 +595,13 @@ export default function AdminPropertiesPage() {
 
     if (
       !Number.isFinite(tc) ||
-      !Number.isFinite(esp) ||
       !Number.isFinite(hive) ||
       !Number.isFinite(requiredFunding) ||
-      !Number.isFinite(expectedProfit) ||
       !Number.isFinite(minimumInvestment) ||
       !Number.isFinite(investorShare) ||
       !Number.isFinite(hiveShare) ||
       !Number.isFinite(completionDuration) ||
       !Number.isFinite(sellingDuration) ||
-      !Number.isFinite(fundingProgress) ||
-      !Number.isFinite(currentFunding) ||
-      !Number.isFinite(annualRoi) ||
       !Number.isFinite(beds) ||
       !Number.isFinite(baths) ||
       !Number.isFinite(area) ||
@@ -496,46 +612,77 @@ export default function AdminPropertiesPage() {
       return;
     }
 
+    if (minimumInvestment < 0) {
+      setModalError("Minimum investment cannot be negative.");
+      return;
+    }
+
     if (Math.round(investorShare + hiveShare) !== 100) {
       setModalError("Investor and Hive profit shares must total 100.");
       return;
     }
 
-    if (fundingProgress < 0 || fundingProgress > 100) {
-      setModalError("Funding progress must be between 0 and 100.");
+    if (!thumbnailImage && !existingMedia.thumbnail?.url) {
+      setModalError("Property must have a thumbnail.");
+      return;
+    }
+
+    if (galleryImages.length > 4) {
+      setModalError("Gallery allows up to 4 images.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/admin/properties/${editingId}` , {
+      const fd = new FormData();
+      appendPropertyFormFields(fd, {
+        title: t,
+        type: String(propertyType || "house"),
+        city: loc,
+        address: String(fullAddress || "").trim(),
+        description: String(description || "").trim(),
+        totalCost: tc,
+        constructionStatus: String(constructionStatus || "not-started"),
+        listingStatus: normalizeListingStatus(listingStatus),
+        expectedSellingPrice,
+        investorFundingRequired: requiredFunding,
+        hiveContribution: hive,
+        expectedProfitPercentage: expectedProfit,
+        minimumInvestment,
+        investorProfitShare: investorShare,
+        hiveProfitShare: hiveShare,
+        expectedCompletionDuration: completionDuration,
+        expectedSellingDuration: sellingDuration,
+        fundingCollected: storedFunding.fundingCollected,
+        fundingProgressPct: storedFunding.fundingProgressPct,
+        expectedAnnualRoiPct: storedFunding.expectedAnnualRoiPct,
+        riskLevel: String(riskLevel || "medium"),
+        bedrooms: beds,
+        bathrooms: baths,
+        areaSize: area,
+        garage: garageCount,
+        floorCount: floors,
+        nearbySchool: nearbySchool === "yes",
+        nearbyHospital: nearbyHospital === "yes",
+        nearbyMarket: nearbyMarket === "yes",
+        nearbyMosque: nearbyMosque === "yes",
+        investorProtectionEnabled: investorProtectionEnabled === "yes",
+        earlyWithdrawalAllowed: earlyWithdrawalAllowed === "yes",
+        earlyWithdrawalProfit: String(earlyWithdrawalProfitRule || "no-profit"),
+        featured: featuredProperty === "yes",
+        createdBy: "admin",
+      });
+
+      if (thumbnailImage) {
+        fd.append("thumbnail", thumbnailImage);
+      }
+      galleryImages.forEach((file) => {
+        fd.append("galleryImages", file);
+      });
+
+      const res = await fetch(`/api/admin/properties/${editingId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: t,
-          type: String(propertyType || "house"),
-          city: loc,
-          address: String(fullAddress || "").trim(),
-          description: String(description || "").trim(),
-          totalCost: tc,
-          constructionStatus: String(constructionStatus || "not-started"),
-          listingStatus: normalizeListingStatus(listingStatus),
-          expectedSellingPrice: esp,
-          investorFundingRequired: requiredFunding,
-          hiveContribution: hive,
-          expectedProfitPercentage: expectedProfit,
-          minimumInvestment: minimumInvestment,
-          investorProfitShare: investorShare,
-          hiveProfitShare: hiveShare,
-          expectedCompletionDuration: completionDuration,
-          expectedSellingDuration: sellingDuration,
-          fundingCollected: currentFunding,
-          investorProtectionEnabled: investorProtectionEnabled === "yes",
-          earlyWithdrawalAllowed: earlyWithdrawalAllowed === "yes",
-          earlyWithdrawalProfit: String(earlyWithdrawalProfitRule || "no-profit"),
-          featured: featuredProperty === "yes",
-          createdBy: "admin",
-        }),
+        body: fd,
       });
 
       const data = await res.json().catch(() => ({}));
@@ -738,6 +885,13 @@ export default function AdminPropertiesPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
+                          onClick={() => openViewModal(p)}
+                          className="rounded-md border border-hive-taupe/40 px-3 py-2 text-xs font-semibold text-hive-charcoal transition-colors hover:border-hive-taupe hover:text-hive-taupe"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => openEditModal(p)}
                           className="rounded-md border border-hive-charcoal px-3 py-2 text-xs font-semibold text-hive-charcoal transition-colors hover:border-hive-taupe hover:text-hive-taupe"
                         >
@@ -785,7 +939,7 @@ export default function AdminPropertiesPage() {
                 </h2>
                 <p className="mt-1 text-sm text-hive-slate">
                   {isEditMode
-                    ? "Update property details. Image changes use Cloudinary from the create flow only."
+                    ? "Update property details. Upload a new thumbnail or gallery to replace existing Cloudinary images."
                     : "Add 1–5 photos (stored on Cloudinary). Fill all required fields."}
                 </p>
               </div>
@@ -878,12 +1032,28 @@ export default function AdminPropertiesPage() {
                         Auto-calculated as Total Project Cost minus Hive Contribution.
                       </p>
                     </div>
-                    <div><label className="text-sm font-semibold text-hive-charcoal">Expected Selling Price</label><input value={expectedSalePrice} onChange={(e) => setExpectedSalePrice(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
-                    <div><label className="text-sm font-semibold text-hive-charcoal">Expected Profit Percentage</label><input value={expectedProfitPct} onChange={(e) => setExpectedProfitPct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
-                    <div><label className="text-sm font-semibold text-hive-charcoal">Minimum Investment Allowed</label><input value={minimumInvestmentAllowed} onChange={(e) => setMinimumInvestmentAllowed(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
-                    <div><label className="text-sm font-semibold text-hive-charcoal">Funding Progress (%)</label><input value={fundingProgressPct} onChange={(e) => setFundingProgressPct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
-                    <div><label className="text-sm font-semibold text-hive-charcoal">Current Funding Collected</label><input value={currentFundingCollected} onChange={(e) => setCurrentFundingCollected(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
-                    <div><label className="text-sm font-semibold text-hive-charcoal">Expected Annual ROI (%)</label><input value={expectedAnnualRoiPct} onChange={(e) => setExpectedAnnualRoiPct(e.target.value)} inputMode="numeric" className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm" /></div>
+                    <div>
+                      <label className="text-sm font-semibold text-hive-charcoal">Minimum Investment Allowed</label>
+                      <input
+                        value={minimumInvestmentAllowed}
+                        onChange={(e) => setMinimumInvestmentAllowed(e.target.value)}
+                        inputMode="numeric"
+                        placeholder="100000"
+                        className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-hive-slate">
+                        Smallest amount an investor can contribute. Use 0 for no minimum.
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2 rounded-xl border border-hive-taupe/30 bg-zinc-50 p-4">
+                      <p className="text-sm font-semibold text-hive-charcoal">Profit distribution</p>
+                      <p className="mt-2 text-sm text-hive-slate">
+                        When the property generates profit,{" "}
+                        <span className="font-semibold text-hive-charcoal">{investorProfitSharePct}%</span> goes to
+                        investors and{" "}
+                        <span className="font-semibold text-hive-charcoal">{hiveProfitSharePct}%</span> goes to Hive.
+                      </p>
+                    </div>
                     <div>
                       <label className="text-sm font-semibold text-hive-charcoal">Risk Level</label>
                       <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)} className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm">
@@ -1020,59 +1190,55 @@ export default function AdminPropertiesPage() {
                     </p>
                     <p className="mt-1 text-xs text-hive-slate">
                       {isEditMode
-                        ? "Media uploads are available while creating a property. Existing images remain unchanged in edit mode."
+                        ? "Current images are shown below. Pick new files only for images you want to replace."
                         : "Upload one thumbnail and up to 4 gallery images."}
                     </p>
-                    {!isEditMode ? (
-                      <>
-                        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                          <div className="rounded-2xl border border-hive-taupe/25 p-4">
-                            <label className="text-sm font-semibold text-hive-charcoal">
-                              Upload Property Thumbnail
-                            </label>
-                            <input
-                              ref={thumbnailInputRef}
-                              type="file"
-                              accept="image/*"
-                              className="mt-2 w-full text-sm"
-                              onChange={(e) => handlePickThumbnail(e.target.files)}
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-hive-taupe/25 p-4">
+                        <label className="text-sm font-semibold text-hive-charcoal">
+                          {isEditMode ? "Replace Thumbnail" : "Upload Property Thumbnail"}
+                        </label>
+                        <input
+                          ref={thumbnailInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="mt-2 w-full text-sm"
+                          onChange={(e) => handlePickThumbnail(e.target.files)}
+                        />
+                      </div>
+                      <div className="rounded-2xl border border-hive-taupe/25 p-4">
+                        <label className="text-sm font-semibold text-hive-charcoal">
+                          {isEditMode ? "Replace Gallery Images" : "Upload Gallery Images"}
+                        </label>
+                        <input
+                          ref={galleryInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="mt-2 w-full text-sm"
+                          onChange={(e) => handlePickGallery(e.target.files)}
+                        />
+                      </div>
+                    </div>
+                    {mediaPreviews.length > 0 ? (
+                      <ul className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5" aria-label="Property image previews">
+                        {mediaPreviews.map((entry, idx) => (
+                          <li
+                            key={`${entry.label}-${idx}`}
+                            className="relative aspect-square overflow-hidden rounded-xl border border-hive-taupe/25 bg-neutral-100 shadow-sm"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={entry.url}
+                              alt={entry.label ? `Preview ${entry.label}` : `Preview ${idx + 1}`}
+                              className="h-full w-full object-cover"
                             />
-                          </div>
-                          <div className="rounded-2xl border border-hive-taupe/25 p-4">
-                            <label className="text-sm font-semibold text-hive-charcoal">
-                              Upload Gallery Images
-                            </label>
-                            <input
-                              ref={galleryInputRef}
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="mt-2 w-full text-sm"
-                              onChange={(e) => handlePickGallery(e.target.files)}
-                            />
-                          </div>
-                        </div>
-                        {imagePreviews.length > 0 ? (
-                          <ul className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5" aria-label="Selected image previews">
-                            {imagePreviews.map((entry, idx) => (
-                              <li
-                                key={`${entry.name}-${idx}`}
-                                className="relative aspect-square overflow-hidden rounded-xl border border-hive-taupe/25 bg-neutral-100 shadow-sm"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs from local files */}
-                                <img
-                                  src={entry.url}
-                                  alt={entry.name ? `Preview ${entry.name}` : `Preview ${idx + 1}`}
-                                  className="h-full w-full object-cover"
-                                />
-                                <p className="pointer-events-none absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1.5 py-1 text-[10px] text-white">
-                                  {entry.name}
-                                </p>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </>
+                            <p className="pointer-events-none absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1.5 py-1 text-[10px] text-white">
+                              {entry.label}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
                     ) : null}
                   </div>
                 ) : null}
@@ -1113,6 +1279,16 @@ export default function AdminPropertiesPage() {
             </form>
           </div>
         </div>
+      ) : null}
+
+      {showViewModal ? (
+        <AdminPropertyViewModal
+          property={viewProperty}
+          loading={viewLoading}
+          error={viewError}
+          onClose={closeViewModal}
+          onEdit={editFromView}
+        />
       ) : null}
     </>
   );

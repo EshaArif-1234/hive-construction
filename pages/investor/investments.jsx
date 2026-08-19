@@ -10,29 +10,11 @@ function formatPKR(amount) {
   return `PKR ${n.toLocaleString("en-PK")}`;
 }
 
-function calcInvestorSharePercent(contribution, totalCost) {
+function calcInvestorSharePercent(contribution, investorPool) {
   const c = Number(contribution);
-  const t = Number(totalCost);
-  if (!Number.isFinite(c) || !Number.isFinite(t) || t <= 0) return 0;
-  return (c / t) * 100;
-}
-
-function calcProfit(contribution, totalCost, currentMarketValue) {
-  const c = Number(contribution);
-  const t = Number(totalCost);
-  const v = Number(currentMarketValue);
-  if (![c, t, v].every(Number.isFinite) || t <= 0) {
-    return { investorProfit: 0, hiveProfit: 0, totalProfit: 0 };
-  }
-
-  const totalProfit = v - t;
-  if (totalProfit <= 0) {
-    return { investorProfit: 0, hiveProfit: 0, totalProfit };
-  }
-
-  const investorProfit = totalProfit * 0.75;
-  const hiveProfit = totalProfit * 0.25;
-  return { investorProfit, hiveProfit, totalProfit };
+  const pool = Number(investorPool);
+  if (!Number.isFinite(c) || !Number.isFinite(pool) || pool <= 0) return 0;
+  return (c / pool) * 100;
 }
 
 function formatListingStatus(status) {
@@ -141,7 +123,7 @@ export default function InvestorInvestmentsPage() {
             Showing <span className="font-semibold text-hive-charcoal">{filtered.length}</span>
           </div>
           <div className="rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-slate">
-            Profit calculation is preview-only.
+            Profit is distributed using the 75% investor / 25% Hive split when recorded by admin.
           </div>
         </div>
 
@@ -159,19 +141,8 @@ export default function InvestorInvestmentsPage() {
 
         <div className="mt-6 grid gap-4">
           {filtered.map((x) => {
-            const sharePercent = calcInvestorSharePercent(
-              x.amount,
-              x.totalPropertyCost
-            );
-
-            const profit = calcProfit(
-              x.amount,
-              x.totalPropertyCost,
-              x.currentMarketValue
-            );
-
-            const principalProtected = true;
-            const principalReturn = Number(x.amount || 0);
+            const sharePercent = calcInvestorSharePercent(x.amount, x.investorFundingRequired);
+            const recordedProfit = Number(x.profitAmount || 0);
 
             return (
               <div
@@ -193,50 +164,60 @@ export default function InvestorInvestmentsPage() {
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <InfoCard label="Your contribution" value={formatPKR(x.amount)} />
                   <InfoCard
-                    label="Your share (est.)"
+                    label="Pool share"
                     value={`${sharePercent.toFixed(2)}%`}
-                    subtext="Based on investment / total cost"
+                    subtext="Your share of investor funding"
                   />
                   <InfoCard
-                    label="Current market value"
-                    value={formatPKR(x.currentMarketValue)}
-                    subtext="Mock value"
+                    label="Profit split"
+                    value="75% / 25%"
+                    subtext="Investors / Hive on project profit"
                   />
                   <InfoCard
-                    label="Principal return"
-                    value={formatPKR(principalReturn)}
-                    subtext={principalProtected ? "Protected" : "Not protected"}
+                    label="Recorded profit"
+                    value={formatPKR(recordedProfit)}
+                    subtext={recordedProfit > 0 ? "Distributed by admin" : "Not recorded yet"}
                   />
                 </div>
 
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   <div className="rounded-2xl bg-hive-charcoal p-5 text-hive-light">
                     <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
-                      Profit calculation (preview)
+                      Profit distribution
                     </p>
                     <p className="mt-2 text-sm text-hive-light/80">
-                      Total profit = market value − total cost
+                      75% of project profit goes to investors and 25% to Hive. Your recorded profit appears after admin allocation.
                     </p>
                     <div className="mt-4 grid gap-2 text-sm">
                       <div className="flex items-center justify-between rounded-lg bg-hive-slate p-3">
-                        <span className="text-hive-light/90">Total Profit</span>
+                        <span className="text-hive-light/90">Your Investment</span>
                         <span className="font-semibold text-hive-taupe">
-                          {formatPKR(profit.totalProfit)}
+                          {formatPKR(x.amount)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between rounded-lg bg-hive-slate p-3">
-                        <span className="text-hive-light/90">Investor Pool (75%)</span>
+                        <span className="text-hive-light/90">Investor pool share</span>
                         <span className="font-semibold text-hive-taupe">
-                          {formatPKR(profit.investorProfit)}
+                          {sharePercent.toFixed(2)}%
                         </span>
                       </div>
                       <div className="flex items-center justify-between rounded-lg bg-hive-slate p-3">
-                        <span className="text-hive-light/90">Hive (25%)</span>
+                        <span className="text-hive-light/90">Recorded profit</span>
                         <span className="font-semibold text-hive-taupe">
-                          {formatPKR(profit.hiveProfit)}
+                          {formatPKR(recordedProfit)}
                         </span>
                       </div>
                     </div>
+                    {Array.isArray(x.profitDistributions) && x.profitDistributions.length > 0 ? (
+                      <ul className="mt-4 space-y-2 border-t border-hive-taupe/20 pt-4 text-xs">
+                        {x.profitDistributions.map((row) => (
+                          <li key={row.id || row.distributedAt} className="flex justify-between gap-3 text-hive-light/85">
+                            <span>{formatPKR(row.amount)}{row.note ? ` · ${row.note}` : ""}</span>
+                            <span>{row.distributedAt ? new Date(row.distributedAt).toLocaleDateString("en-PK") : "—"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
 
                   <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-5">

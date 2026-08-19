@@ -16,9 +16,8 @@ export default function AboutUsPage() {
         <link rel="canonical" href="/about-us" />
       </Head>
 
-      <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl">
+      <section>
+        <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
               About
             </p>
@@ -44,7 +43,6 @@ export default function AboutUsPage() {
               <p className="mt-2 text-sm text-hive-slate">Security-first participation model</p>
             </div>
           </div>
-        </div>
       </section>
 
       <Section
@@ -187,8 +185,7 @@ export default function AboutUsPage() {
         </div>
       </Section>
 
-      <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+      <section className="py-10 sm:py-12">
           <div className="rounded-3xl bg-hive-charcoal p-8 text-hive-light">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
@@ -215,7 +212,6 @@ export default function AboutUsPage() {
               </div>
             </div>
           </div>
-        </div>
       </section>
 
       <WebsiteFooter />

@@ -88,7 +88,7 @@ const ROUTE_META = {
   },
   "/admin/investors": {
     title: "Investors",
-    subtitle: "Review accounts, verification status, and onboarding.",
+    subtitle: "Review accounts, verification status, and investor profiles.",
   },
   "/admin/security": {
     title: "Security & exit plan",
@@ -96,7 +96,23 @@ const ROUTE_META = {
   },
   "/admin/reports": {
     title: "Reports",
-    subtitle: "Exports and summaries for stakeholders.",
+    subtitle: "Investor activity, property status, and profit/loss summaries.",
+  },
+  "/admin/reports/investors": {
+    title: "Investor activity report",
+    subtitle: "Contributions, profit, and cheque counts per investor.",
+  },
+  "/admin/reports/properties": {
+    title: "Property status report",
+    subtitle: "Funding, construction, and listing status by property.",
+  },
+  "/admin/reports/profit-loss": {
+    title: "Profit & loss report",
+    subtitle: "Projected vs distributed profit and loss scenarios.",
+  },
+  "/admin/reports/profit-sharing": {
+    title: "Profit sharing audit",
+    subtitle: "75/25 split validation and distribution ledger reconciliation.",
   },
   "/admin/settings": {
     title: "Settings",
@@ -106,6 +122,15 @@ const ROUTE_META = {
 
 function getRouteMeta(pathname) {
   if (ROUTE_META[pathname]) return ROUTE_META[pathname];
+  if (pathname.startsWith("/admin/investors/") && pathname !== "/admin/investors") {
+    return {
+      title: "Investor profile",
+      subtitle: "Full activity, investments, and security cheques.",
+    };
+  }
+  if (pathname.startsWith("/admin/reports/")) {
+    return ROUTE_META["/admin/reports"];
+  }
   return {
     title: "Admin",
     subtitle: "Hive Construction admin console.",
@@ -167,7 +192,14 @@ function SidebarChrome({ activeHref, onLogout, showFooterCard, onNavigate }) {
 
       <SidebarNav activeHref={activeHref} onNavigate={onNavigate} />
 
-      <div className="mt-auto border-t border-white/[0.08] p-4">
+      <div className="mt-auto space-y-2 border-t border-white/[0.08] p-4">
+        <Link
+          href="/"
+          onClick={() => onNavigate?.()}
+          className="block w-full rounded-lg border border-hive-taupe/40 bg-hive-taupe/10 px-4 py-2.5 text-center text-sm font-semibold text-hive-taupe transition-colors hover:bg-hive-taupe hover:text-hive-charcoal"
+        >
+          Go to website
+        </Link>
         <button
           type="button"
           onClick={onLogout}
@@ -333,7 +365,7 @@ export default function AdminLayout({ children }) {
                 </div>
               </div>
 
-              <div className="hidden shrink-0 flex-row items-center gap-4 lg:flex">
+              <div className="hidden shrink-0 flex-row items-center gap-3 lg:flex">
                 <div className="text-right">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
                     Today
@@ -343,6 +375,12 @@ export default function AdminLayout({ children }) {
                 <span className="hidden rounded-full border border-neutral-200/90 bg-neutral-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-600 xl:inline-flex">
                   Administrator
                 </span>
+                <Link
+                  href="/"
+                  className="rounded-xl border border-neutral-300 bg-white px-3.5 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
+                >
+                  Go to website
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -352,13 +390,21 @@ export default function AdminLayout({ children }) {
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="shrink-0 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10 lg:hidden"
-              >
-                Log out
-              </button>
+              <div className="flex shrink-0 items-center gap-2 lg:hidden">
+                <Link
+                  href="/"
+                  className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
+                >
+                  Website
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
+                >
+                  Log out
+                </button>
+              </div>
             </div>
           </div>
         </header>

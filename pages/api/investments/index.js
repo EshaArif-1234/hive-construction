@@ -2,6 +2,8 @@ import dbConnect from "@/lib/dbConnect";
 import { requireInvestor } from "@/lib/investorSession";
 import Investment from "@/models/Investment";
 import Property from "@/models/Property";
+import { getPropertyFundingStats, syncPropertyFunding } from "@/lib/propertyFunding";
+import { PUBLIC_ACTIVE_FILTER } from "@/lib/publicPropertyQuery";
 
 function humanizeKebab(value, fallback = "N/A") {
   const v = String(value || "").trim();
@@ -10,6 +12,17 @@ function humanizeKebab(value, fallback = "N/A") {
     .split("-")
     .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
     .join(" ");
+}
+
+function isAcceptingInvestment(property) {
+  const listingStatus = String(property?.listingStatus || "").toLowerCase();
+  const constructionStatus = String(property?.constructionStatus || "").toLowerCase();
+  return (
+    listingStatus === "active" &&
+    ["under-construction", "gray-structure-completed", "finishing-work", "land-purchased"].includes(
+      constructionStatus
+    )
+  );
 }
 
 export default async function handler(req, res) {
@@ -23,11 +36,11 @@ export default async function handler(req, res) {
       const investments = await Investment.find({ investorId: String(payload.sub) })
         .sort({ investmentDate: -1 })
         .select(
-          "investorId propertyId amount paymentMethod paymentScreenshotName investmentDate sharePercentage profitAmount status"
+          "investorId propertyId amount paymentMethod paymentScreenshotName investmentDate sharePercentage profitAmount profitDistributions lastProfitDistributedAt status"
         )
         .populate({
           path: "propertyId",
-          select: "title city listingStatus totalCost expectedSellingPrice",
+          select: "title city listingStatus totalCost investorFundingRequired",
           options: { lean: true },
         })
         .lean();
@@ -41,15 +54,22 @@ export default async function handler(req, res) {
           propertyCity: inv?.propertyId?.city || "",
           propertyStatus: inv?.propertyId?.listingStatus || "draft",
           totalPropertyCost: Number(inv?.propertyId?.totalCost || 0),
-          currentMarketValue: Number(
-            inv?.propertyId?.expectedSellingPrice || inv?.propertyId?.totalCost || 0
-          ),
+          investorFundingRequired: Number(inv?.propertyId?.investorFundingRequired || 0),
           amount: Number(inv.amount || 0),
           paymentMethod: inv.paymentMethod,
           paymentScreenshotName: inv.paymentScreenshotName || "",
           investmentDate: inv.investmentDate,
           sharePercentage: Number(inv.sharePercentage || 0),
           profitAmount: Number(inv.profitAmount || 0),
+          lastProfitDistributedAt: inv.lastProfitDistributedAt || null,
+          profitDistributions: Array.isArray(inv.profitDistributions)
+            ? inv.profitDistributions.map((row) => ({
+                id: row._id ? String(row._id) : "",
+                amount: Number(row.amount || 0),
+                distributedAt: row.distributedAt,
+                note: row.note || "",
+              }))
+            : [],
           status: inv.status || "active",
         })),
       });
@@ -85,35 +105,54 @@ export default async function handler(req, res) {
   try {
     await dbConnect();
 
-    const property = await Property.findById(String(propertyId))
-      .select("totalCost status listingStatus constructionStatus")
+    const property = await Property.findOne({
+      _id: String(propertyId),
+      ...PUBLIC_ACTIVE_FILTER,
+    })
+      .select(
+        "totalCost investorFundingRequired minimumInvestment listingStatus constructionStatus"
+      )
       .lean();
 
     if (!property) {
       return res.status(404).json({ message: "Property not found" });
     }
 
-    const listingStatus = String(property?.listingStatus || "").toLowerCase();
-    const constructionStatus = String(property?.constructionStatus || "").toLowerCase();
-    const legacyStatus = String(property?.status || "").toLowerCase();
-    const isAcceptingCapital =
-      (listingStatus === "active" &&
-        ["under-construction", "gray-structure-completed", "finishing-work"].includes(
-          constructionStatus
-        )) ||
-      legacyStatus === "in-progress";
-
-    if (!isAcceptingCapital) {
+    if (!isAcceptingInvestment(property)) {
       return res.status(400).json({
-        message: `This property is not currently accepting capital. Current status: ${humanizeKebab(
-          listingStatus || legacyStatus,
-          "Unknown"
-        )}${constructionStatus ? ` (${humanizeKebab(constructionStatus)})` : ""}.`,
+        message: `This property is not currently accepting investment. Status: ${humanizeKebab(
+          property.listingStatus
+        )} (${humanizeKebab(property.constructionStatus)}).`,
       });
     }
 
-    const totalCost = Number(property.totalCost);
-    const sharePercentage = Number.isFinite(totalCost) && totalCost > 0 ? (amountNum / totalCost) * 100 : 0;
+    const funding = await getPropertyFundingStats(property._id, {
+      totalCost: property.totalCost,
+      investorFundingRequired: property.investorFundingRequired,
+    });
+
+    if (funding.isFullyFunded) {
+      return res.status(400).json({
+        message: "This property is fully funded. No further investment is accepted.",
+      });
+    }
+
+    const minimumInvestment = Number(property.minimumInvestment || 0);
+    if (minimumInvestment > 0 && amountNum < minimumInvestment) {
+      return res.status(400).json({
+        message: `Minimum investment is PKR ${minimumInvestment.toLocaleString()}.`,
+      });
+    }
+
+    if (amountNum > funding.remainingFunding) {
+      return res.status(400).json({
+        message: `Amount exceeds remaining funding (PKR ${Math.round(funding.remainingFunding).toLocaleString()} available).`,
+      });
+    }
+
+    const investorPool = Number(property.investorFundingRequired || 0);
+    const sharePercentage =
+      investorPool > 0 ? Math.round((amountNum / investorPool) * 10000) / 100 : 0;
 
     const investment = await Investment.create({
       investorId: String(payload.sub),
@@ -126,6 +165,8 @@ export default async function handler(req, res) {
       profitAmount: 0,
       status: "active",
     });
+
+    const updatedFunding = await syncPropertyFunding(property._id);
 
     return res.status(201).json({
       message: "Investment created",
@@ -141,8 +182,9 @@ export default async function handler(req, res) {
         profitAmount: investment.profitAmount,
         status: investment.status,
       },
+      funding: updatedFunding,
     });
-  } catch (e) {
+  } catch {
     return res.status(500).json({ message: "Server error" });
   }
 }

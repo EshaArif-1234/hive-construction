@@ -1,5 +1,8 @@
 import dbConnect from "@/lib/dbConnect";
 import Property from "@/models/Property";
+import { PUBLIC_ACTIVE_FILTER } from "@/lib/publicPropertyQuery";
+import { attachFundingStats, getPropertyFundingStats } from "@/lib/propertyFunding";
+import { PROPERTY_FIELDS, serializeProperty } from "@/lib/serializeProperty";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -15,46 +18,21 @@ export default async function handler(req, res) {
   try {
     await dbConnect();
 
-    const p = await Property.findById(String(id))
-      .select(
-        "title type city address description totalCost hiveContribution investorFundingRequired expectedSellingPrice expectedProfitPercentage minimumInvestment investorProfitShare hiveProfitShare constructionStatus expectedCompletionDuration expectedSellingDuration investorProtectionEnabled earlyWithdrawalAllowed earlyWithdrawalProfit thumbnail galleryImages listingStatus featured fundingCollected createdBy createdAt"
-      )
+    const property = await Property.findOne({ _id: String(id), ...PUBLIC_ACTIVE_FILTER })
+      .select(PROPERTY_FIELDS)
       .lean();
 
-    if (!p) {
+    if (!property) {
       return res.status(404).json({ message: "Property not found" });
     }
 
+    const funding = await getPropertyFundingStats(property._id, {
+      totalCost: property.totalCost,
+      investorFundingRequired: property.investorFundingRequired,
+    });
+
     return res.status(200).json({
-      property: {
-        id: String(p._id),
-        title: p.title,
-        type: p.type,
-        city: p.city,
-        address: p.address,
-        description: p.description,
-        totalCost: p.totalCost,
-        hiveContribution: p.hiveContribution,
-        investorFundingRequired: p.investorFundingRequired,
-        expectedSellingPrice: p.expectedSellingPrice,
-        expectedProfitPercentage: p.expectedProfitPercentage,
-        minimumInvestment: p.minimumInvestment,
-        investorProfitShare: p.investorProfitShare,
-        hiveProfitShare: p.hiveProfitShare,
-        constructionStatus: p.constructionStatus,
-        expectedCompletionDuration: p.expectedCompletionDuration,
-        expectedSellingDuration: p.expectedSellingDuration,
-        investorProtectionEnabled: p.investorProtectionEnabled,
-        earlyWithdrawalAllowed: p.earlyWithdrawalAllowed,
-        earlyWithdrawalProfit: p.earlyWithdrawalProfit,
-        listingStatus: p.listingStatus,
-        featured: p.featured,
-        fundingCollected: p.fundingCollected,
-        createdBy: p.createdBy,
-        thumbnail: p.thumbnail || {},
-        galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
-        createdAt: p.createdAt,
-      },
+      property: attachFundingStats(serializeProperty(property), funding),
     });
   } catch {
     return res.status(500).json({ message: "Server error" });

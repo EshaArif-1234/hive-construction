@@ -1,5 +1,6 @@
 import dbConnect from "@/lib/dbConnect";
 import Property from "@/models/Property";
+import { PUBLIC_ACTIVE_FILTER } from "@/lib/publicPropertyQuery";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -20,7 +21,9 @@ export default async function handler(req, res) {
   try {
     await dbConnect();
 
-    const p = await Property.findById(String(id)).select("thumbnail galleryImages");
+    const p = await Property.findOne({ _id: String(id), ...PUBLIC_ACTIVE_FILTER }).select(
+      "thumbnail galleryImages"
+    );
     if (!p) {
       return res.status(404).json({ message: "Property not found" });
     }

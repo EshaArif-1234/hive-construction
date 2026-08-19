@@ -25,6 +25,7 @@ export default async function handler(req, res) {
       investorsPending,
       investmentSumResult,
       investmentsActiveCount,
+      profitSumResult,
     ] = await Promise.all([
       Property.countDocuments(),
       Property.countDocuments({ status: "available" }),
@@ -37,9 +38,13 @@ export default async function handler(req, res) {
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
       Investment.countDocuments({ status: "active" }),
+      Investment.aggregate([
+        { $group: { _id: null, total: { $sum: "$profitAmount" } } },
+      ]),
     ]);
 
     const totalInvestedActive = investmentSumResult[0]?.total ?? 0;
+    const totalProfitRecorded = profitSumResult[0]?.total ?? 0;
 
     return res.status(200).json({
       propertiesTotal,
@@ -50,6 +55,7 @@ export default async function handler(req, res) {
       investorsPending,
       totalInvestedActive,
       investmentsActiveCount,
+      totalProfitRecorded,
     });
   } catch {
     return res.status(500).json({ message: "Server error" });

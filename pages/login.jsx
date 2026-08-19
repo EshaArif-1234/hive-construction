@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import PasswordInput from "../components/PasswordInput";
+import { isInvestReturnUrl } from "../lib/investorAuthRedirect";
 
 function RoleCard({ title, description, selected, onClick }) {
   return (
@@ -45,8 +46,14 @@ export default function LoginPage() {
   }, [selectedRole]);
 
   const setRole = (r) => {
-    router.push({ pathname: "/login", query: { role: r } });
+    const query = { role: r };
+    if (typeof next === "string" && next.startsWith("/")) {
+      query.next = next;
+    }
+    router.push({ pathname: "/login", query });
   };
+
+  const returningToInvest = typeof next === "string" && isInvestReturnUrl(next);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -141,8 +148,8 @@ export default function LoginPage() {
         <title>Login | Hive Construction</title>
       </Head>
 
-      <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+      <section className="pb-8 sm:pb-10 md:pb-16">
+        <div className="mx-auto max-w-5xl">
           <div className="rounded-3xl border border-hive-taupe/20 bg-hive-light p-6 sm:p-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -153,7 +160,9 @@ export default function LoginPage() {
                   Login
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-hive-slate">
-                  Choose your role, then sign in.
+                  {returningToInvest
+                    ? "Sign in as an investor to continue with your investment."
+                    : "Choose your role, then sign in."}
                 </p>
               </div>
 
@@ -165,7 +174,11 @@ export default function LoginPage() {
                   Back to website
                 </Link>
                 <Link
-                  href="/signup"
+                  href={
+                    typeof next === "string" && next.startsWith("/")
+                      ? { pathname: "/signup", query: { next } }
+                      : "/signup"
+                  }
                   className="rounded-md bg-hive-charcoal px-4 py-2 text-sm font-semibold text-hive-light transition-colors hover:text-hive-taupe"
                 >
                   Sign Up
@@ -194,15 +207,26 @@ export default function LoginPage() {
                   />
                 </div>
 
-                <div className="rounded-2xl bg-hive-charcoal p-5 text-hive-light">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
-                    Note
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-hive-light/80">
-                    Investor dashboard will be enabled next. This flow is prepared
-                    for role-based authentication.
-                  </p>
-                </div>
+                {returningToInvest ? (
+                  <div className="rounded-2xl border border-hive-taupe/40 bg-hive-taupe/10 p-5 text-hive-charcoal">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
+                      Investment checkout
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-hive-slate">
+                      After you sign in, you&apos;ll return to the property page to complete your investment.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-hive-charcoal p-5 text-hive-light">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
+                      Note
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-hive-light/80">
+                      Investor dashboard will be enabled next. This flow is prepared
+                      for role-based authentication.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>

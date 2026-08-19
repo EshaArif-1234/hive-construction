@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import PropertyCard from "@/components/PropertyCard";
 import WebsiteFooter from "@/components/WebsiteFooter";
+import { mapPublicPropertyForCard } from "@/lib/mapPublicPropertyForCard";
 
 function formatStatus(status) {
   const value = String(status || "").toLowerCase();
@@ -53,27 +54,7 @@ export default function PropertiesPage() {
         }
         if (!cancelled) {
           const list = Array.isArray(data?.properties) ? data.properties : [];
-          setProperties(
-            list.map((p) => {
-              const required = Number(p?.investorFundingRequired || 0);
-              const collected = Number(p?.fundingCollected || 0);
-              const progress =
-                required > 0 ? Math.min(100, Math.max(0, (collected / required) * 100)) : 0;
-              return {
-                ...p,
-                location: p.city || "",
-                expectedProfitMinPct: p.expectedProfitPercentage,
-                expectedProfitMaxPct: p.expectedProfitPercentage,
-                fundingProgressPct: progress,
-                status: p.listingStatus,
-                expectedSalePrice: p.expectedSellingPrice,
-                riskLevel: normalizeRisk(p.riskLevel),
-                bedrooms: p.bedrooms ?? 0,
-                bathrooms: p.bathrooms ?? 0,
-                areaSize: p.areaSize ?? 0,
-              };
-            })
-          );
+          setProperties(list.map(mapPublicPropertyForCard));
         }
       } catch (e) {
         if (!cancelled) {
@@ -103,7 +84,7 @@ export default function PropertiesPage() {
 
       const matchesStatus = status === "all" ? true : formatStatus(p.status) === status;
 
-      const priceValue = Number(p.expectedSalePrice);
+      const priceValue = Number(p.totalCost);
       const matchesPrice = Number.isFinite(priceValue)
         ? priceValue >= min && priceValue < max
         : true;
@@ -133,9 +114,8 @@ export default function PropertiesPage() {
         <link rel="canonical" href="/properties" />
       </Head>
 
-      <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl">
+      <section>
+        <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
               Listings
             </p>
@@ -258,14 +238,15 @@ export default function PropertiesPage() {
                       title={p.title}
                       location={p.location}
                       totalCost={p.totalCost}
-                      expectedProfitMinPct={p.expectedProfitMinPct}
-                      expectedProfitMaxPct={p.expectedProfitMaxPct}
+                      investorProfitShare={p.investorProfitShare}
+                      hiveProfitShare={p.hiveProfitShare}
                       fundingProgressPct={p.fundingProgressPct}
                       propertyType={p.type}
                       riskLevel={p.riskLevel}
                       investorFundingRequired={p.investorFundingRequired}
                       minimumInvestment={p.minimumInvestment}
                       fundingCollected={p.fundingCollected}
+                      isFullyFunded={p.isFullyFunded}
                       featured={p.featured}
                       bedrooms={p.bedrooms}
                       bathrooms={p.bathrooms}
@@ -295,7 +276,6 @@ export default function PropertiesPage() {
               </>
             )}
           </div>
-        </div>
       </section>
 
       <WebsiteFooter />

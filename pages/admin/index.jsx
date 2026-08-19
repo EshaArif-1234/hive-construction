@@ -241,8 +241,13 @@ export default function AdminDashboardPage() {
               />
               <QuickAction
                 href="/admin/investments"
-                title="Investments"
-                description="Track allocations and profit-related records."
+                title="Manage investments"
+                description="Track amounts, dates, and distribute profit to investors."
+              />
+              <QuickAction
+                href="/admin/reports"
+                title="View reports"
+                description="Investor activity, property status, and profit/loss summaries."
               />
             </div>
           </div>

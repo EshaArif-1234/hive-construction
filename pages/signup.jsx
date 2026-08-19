@@ -90,8 +90,8 @@ export default function SignupPage() {
         <title>Sign Up | Hive Construction</title>
       </Head>
 
-      <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8">
+      <section className="pb-8 sm:pb-10 md:pb-16">
+        <div className="mx-auto max-w-3xl">
           <div className="rounded-3xl border border-hive-taupe/20 bg-hive-light p-6 sm:p-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>

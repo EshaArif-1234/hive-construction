@@ -32,9 +32,8 @@ export default function TermsAndConditionsPage() {
         <link rel="canonical" href="/terms-and-conditions" />
       </Head>
 
-      <section className="py-14 sm:py-16">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl">
+      <section>
+        <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
               Legal
             </p>
@@ -197,7 +196,6 @@ export default function TermsAndConditionsPage() {
               </p>
             </div>
           </div>
-        </div>
       </section>
 
       <WebsiteFooter />

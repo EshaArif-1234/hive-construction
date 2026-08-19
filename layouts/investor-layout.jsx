@@ -148,7 +148,14 @@ function SidebarChrome({ activeHref, onLogout, onNavigate }) {
 
       <SidebarNav activeHref={activeHref} onNavigate={onNavigate} />
 
-      <div className="mt-auto border-t border-white/[0.08] p-4">
+      <div className="mt-auto space-y-2 border-t border-white/[0.08] p-4">
+        <Link
+          href="/"
+          onClick={() => onNavigate?.()}
+          className="block w-full rounded-lg border border-hive-taupe/40 bg-hive-taupe/10 px-4 py-2.5 text-center text-sm font-semibold text-hive-taupe transition-colors hover:bg-hive-taupe hover:text-hive-charcoal"
+        >
+          Go to website
+        </Link>
         <button
           type="button"
           onClick={onLogout}
@@ -219,6 +226,12 @@ export default function InvestorLayout({ children }) {
 
           <div className="flex items-center gap-3">
             <Link
+              href="/"
+              className="hidden rounded-md border border-hive-taupe px-4 py-2 text-sm font-semibold text-hive-light transition-colors hover:bg-hive-taupe hover:text-hive-charcoal sm:inline-flex"
+            >
+              Go to website
+            </Link>
+            <Link
               href="/properties"
               className="hidden rounded-md border border-hive-taupe px-4 py-2 text-sm font-semibold text-hive-light transition-colors hover:bg-hive-taupe hover:text-hive-charcoal sm:inline-flex"
             >
@@ -287,13 +300,21 @@ export default function InvestorLayout({ children }) {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="shrink-0 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
-              >
-                Log out
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Link
+                  href="/"
+                  className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
+                >
+                  Go to website
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-hive-charcoal shadow-sm transition-colors hover:border-hive-taupe hover:bg-hive-taupe/10"
+                >
+                  Log out
+                </button>
+              </div>
             </div>
           </div>
         </header>
