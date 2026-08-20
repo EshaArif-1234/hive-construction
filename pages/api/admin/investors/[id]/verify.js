@@ -1,6 +1,7 @@
 import dbConnect from "@/lib/dbConnect";
 import Investor from "@/models/Investor";
 import { requireAdmin } from "@/lib/adminSession";
+import { notifyAccountVerified } from "@/lib/investorNotifications";
 
 export default async function handler(req, res) {
   const payload = requireAdmin(req, res);
@@ -29,6 +30,8 @@ export default async function handler(req, res) {
     if (!investor) {
       return res.status(404).json({ message: "Investor not found" });
     }
+
+    await notifyAccountVerified({ investorId: String(investor._id) });
 
     return res.status(200).json({
       message: "Investor verified",

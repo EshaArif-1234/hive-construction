@@ -11,6 +11,8 @@ import {
   CHEQUE_STATUSES,
   SETTLEMENT_TYPES,
 } from "@/lib/securityChequeConstants";
+import { notifySecurityCheque } from "@/lib/investorNotifications";
+import Property from "@/models/Property";
 
 function parseDate(value, fallback = null) {
   if (!value) return fallback;
@@ -136,6 +138,18 @@ export default async function handler(req, res) {
       const populated = await populateSecurityCheque(
         SecurityCheque.findById(created._id)
       ).lean();
+
+      const property = await Property.findById(String(investment.propertyId)).select("title").lean();
+
+      await notifySecurityCheque({
+        investorId: String(investment.investorId),
+        propertyId: String(investment.propertyId),
+        propertyTitle: property?.title || "Property",
+        investmentId: String(investmentId),
+        chequeNumber: String(chequeNumber).trim(),
+        status: normalizedStatus,
+        principalAmount: principalNum,
+      });
 
       return res.status(201).json({
         message: "Security cheque recorded",

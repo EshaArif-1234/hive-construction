@@ -103,11 +103,12 @@ function IconChevronRight(props) {
   );
 }
 
-function SidebarNav({ activeHref, onNavigate }) {
+function SidebarNav({ activeHref, onNavigate, unreadCount = 0 }) {
   return (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
       {navItems.map(({ label, href, Icon }) => {
         const isActive = activeHref === href;
+        const showBadge = href === "/investor/updates" && unreadCount > 0;
         return (
           <Link
             key={href}
@@ -126,7 +127,14 @@ function SidebarNav({ activeHref, onNavigate }) {
                 (isActive ? "text-hive-taupe" : "text-white/45 group-hover:text-white/70")
               }
             />
-            <span>{label}</span>
+            <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+              <span>{label}</span>
+              {showBadge && (
+                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-hive-taupe px-1.5 py-0.5 text-[10px] font-bold leading-none text-hive-charcoal">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </span>
           </Link>
         );
       })}
@@ -134,7 +142,7 @@ function SidebarNav({ activeHref, onNavigate }) {
   );
 }
 
-function SidebarChrome({ activeHref, onLogout, onNavigate }) {
+function SidebarChrome({ activeHref, onLogout, onNavigate, unreadCount = 0 }) {
   return (
     <>
       <div className="flex h-[4.25rem] shrink-0 items-center border-b border-white/[0.08] px-5">
@@ -146,7 +154,7 @@ function SidebarChrome({ activeHref, onLogout, onNavigate }) {
         </div>
       </div>
 
-      <SidebarNav activeHref={activeHref} onNavigate={onNavigate} />
+      <SidebarNav activeHref={activeHref} onNavigate={onNavigate} unreadCount={unreadCount} />
 
       <div className="mt-auto space-y-2 border-t border-white/[0.08] p-4">
         <Link
@@ -171,6 +179,7 @@ function SidebarChrome({ activeHref, onLogout, onNavigate }) {
 export default function InvestorLayout({ children }) {
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -191,6 +200,28 @@ export default function InvestorLayout({ children }) {
 
     run();
   }, [router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+
+    const loadUnread = async () => {
+      try {
+        const res = await fetch("/api/investor/notifications?unreadOnly=true&limit=1");
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          setUnreadCount(Number(data?.unreadCount) || 0);
+        }
+      } catch {
+        if (!cancelled) setUnreadCount(0);
+      }
+    };
+
+    loadUnread();
+    return () => {
+      cancelled = true;
+    };
+  }, [router.pathname]);
 
   const activeHref = useMemo(() => router.pathname, [router.pathname]);
 
@@ -249,7 +280,7 @@ export default function InvestorLayout({ children }) {
       </div>
 
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-white/10 bg-gradient-to-b from-[#0a0a0a] via-hive-charcoal to-[#050505] shadow-[4px_0_24px_rgba(0,0,0,0.12)] lg:flex">
-        <SidebarChrome activeHref={activeHref} onLogout={handleLogout} />
+        <SidebarChrome activeHref={activeHref} onLogout={handleLogout} unreadCount={unreadCount} />
       </aside>
 
       {mobileNavOpen ? (
@@ -265,6 +296,7 @@ export default function InvestorLayout({ children }) {
               activeHref={activeHref}
               onLogout={handleLogout}
               onNavigate={() => setMobileNavOpen(false)}
+              unreadCount={unreadCount}
             />
           </aside>
         </div>

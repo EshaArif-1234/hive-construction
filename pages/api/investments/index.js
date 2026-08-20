@@ -3,7 +3,9 @@ import { requireInvestor } from "@/lib/investorSession";
 import Investment from "@/models/Investment";
 import Property from "@/models/Property";
 import { getPropertyFundingStats, syncPropertyFunding } from "@/lib/propertyFunding";
+import { computePoolSharePercentage } from "@/lib/profitDistribution";
 import { PUBLIC_ACTIVE_FILTER } from "@/lib/publicPropertyQuery";
+import { notifyInvestmentCreated } from "@/lib/investorNotifications";
 
 function humanizeKebab(value, fallback = "N/A") {
   const v = String(value || "").trim();
@@ -40,38 +42,80 @@ export default async function handler(req, res) {
         )
         .populate({
           path: "propertyId",
-          select: "title city listingStatus totalCost investorFundingRequired",
+          select: "title city listingStatus totalCost investorFundingRequired investorProfitShare hiveProfitShare",
           options: { lean: true },
         })
         .lean();
 
+      const propertyIds = [
+        ...new Set(
+          investments
+            .map((inv) => String(inv?.propertyId?._id || inv.propertyId || ""))
+            .filter(Boolean)
+        ),
+      ];
+
+      const fundingByPropertyId = new Map();
+      await Promise.all(
+        propertyIds.map(async (propertyId) => {
+          const sample = investments.find(
+            (inv) => String(inv?.propertyId?._id || inv.propertyId || "") === propertyId
+          );
+          const stats = await getPropertyFundingStats(propertyId, {
+            totalCost: sample?.propertyId?.totalCost,
+            investorFundingRequired: sample?.propertyId?.investorFundingRequired,
+          });
+          fundingByPropertyId.set(propertyId, stats);
+        })
+      );
+
       return res.status(200).json({
-        investments: investments.map((inv) => ({
-          id: String(inv._id),
-          investorId: String(inv.investorId),
-          propertyId: inv?.propertyId?._id ? String(inv.propertyId._id) : String(inv.propertyId || ""),
-          propertyTitle: inv?.propertyId?.title || "Property",
-          propertyCity: inv?.propertyId?.city || "",
-          propertyStatus: inv?.propertyId?.listingStatus || "draft",
-          totalPropertyCost: Number(inv?.propertyId?.totalCost || 0),
-          investorFundingRequired: Number(inv?.propertyId?.investorFundingRequired || 0),
-          amount: Number(inv.amount || 0),
-          paymentMethod: inv.paymentMethod,
-          paymentScreenshotName: inv.paymentScreenshotName || "",
-          investmentDate: inv.investmentDate,
-          sharePercentage: Number(inv.sharePercentage || 0),
-          profitAmount: Number(inv.profitAmount || 0),
-          lastProfitDistributedAt: inv.lastProfitDistributedAt || null,
-          profitDistributions: Array.isArray(inv.profitDistributions)
-            ? inv.profitDistributions.map((row) => ({
-                id: row._id ? String(row._id) : "",
-                amount: Number(row.amount || 0),
-                distributedAt: row.distributedAt,
-                note: row.note || "",
-              }))
-            : [],
-          status: inv.status || "active",
-        })),
+        investments: investments.map((inv) => {
+          const propertyId = inv?.propertyId?._id
+            ? String(inv.propertyId._id)
+            : String(inv.propertyId || "");
+          const amount = Number(inv.amount || 0);
+          const investorFundingRequired = Number(inv?.propertyId?.investorFundingRequired || 0);
+          const funding = fundingByPropertyId.get(propertyId) || {};
+          const propertyFundingCollected = Number(funding.fundingCollected || 0);
+          const profitAllocationSharePct =
+            propertyFundingCollected > 0
+              ? computePoolSharePercentage(amount, propertyFundingCollected)
+              : 0;
+          const investorProfitShare = Number(inv?.propertyId?.investorProfitShare ?? 75);
+          const hiveProfitShare = Number(inv?.propertyId?.hiveProfitShare ?? 25);
+
+          return {
+            id: String(inv._id),
+            investorId: String(inv.investorId),
+            propertyId,
+            propertyTitle: inv?.propertyId?.title || "Property",
+            propertyCity: inv?.propertyId?.city || "",
+            propertyStatus: inv?.propertyId?.listingStatus || "draft",
+            totalPropertyCost: Number(inv?.propertyId?.totalCost || 0),
+            investorFundingRequired,
+            propertyFundingCollected,
+            investorProfitShare,
+            hiveProfitShare,
+            amount,
+            paymentMethod: inv.paymentMethod,
+            paymentScreenshotName: inv.paymentScreenshotName || "",
+            investmentDate: inv.investmentDate,
+            sharePercentage: Number(inv.sharePercentage || 0),
+            profitAllocationSharePct,
+            profitAmount: Number(inv.profitAmount || 0),
+            lastProfitDistributedAt: inv.lastProfitDistributedAt || null,
+            profitDistributions: Array.isArray(inv.profitDistributions)
+              ? inv.profitDistributions.map((row) => ({
+                  id: row._id ? String(row._id) : "",
+                  amount: Number(row.amount || 0),
+                  distributedAt: row.distributedAt,
+                  note: row.note || "",
+                }))
+              : [],
+            status: inv.status || "active",
+          };
+        }),
       });
     } catch {
       return res.status(500).json({ message: "Server error" });
@@ -167,6 +211,16 @@ export default async function handler(req, res) {
     });
 
     const updatedFunding = await syncPropertyFunding(property._id);
+
+    const propertyDoc = await Property.findById(property._id).select("title").lean();
+
+    await notifyInvestmentCreated({
+      investorId: String(payload.sub),
+      propertyId: String(propertyId),
+      propertyTitle: propertyDoc?.title || "Property",
+      amount: amountNum,
+      investmentId: String(investment._id),
+    });
 
     return res.status(201).json({
       message: "Investment created",

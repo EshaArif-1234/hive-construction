@@ -2,10 +2,14 @@ import multer from "multer";
 import dbConnect from "@/lib/dbConnect";
 import { requireAdmin } from "@/lib/adminSession";
 import Property from "@/models/Property";
+import Investment from "@/models/Investment";
+import SecurityCheque from "@/models/SecurityCheque";
+import PropertyProfitDistribution from "@/models/PropertyProfitDistribution";
 import { destroyCloudinaryAsset, isCloudinaryConfigured } from "@/lib/cloudinary";
 import { collectPropertyImages, parsePropertyInput } from "@/lib/parsePropertyInput";
 import { applyPropertyImageUpdates } from "@/lib/propertyMedia";
 import { PROPERTY_FIELDS, serializeProperty } from "@/lib/serializeProperty";
+import { notifyPropertyStatusChange } from "@/lib/investorNotifications";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -65,12 +69,23 @@ export default async function handler(req, res) {
         }
       }
 
+      const [investmentsResult, chequesResult, distributionsResult] = await Promise.all([
+        Investment.deleteMany({ propertyId: id }),
+        SecurityCheque.deleteMany({ propertyId: id }),
+        PropertyProfitDistribution.deleteMany({ propertyId: id }),
+      ]);
+
       const deleted = await Property.findByIdAndDelete(id).select("_id").lean();
       if (!deleted) {
         return res.status(404).json({ message: "Property not found" });
       }
 
-      return res.status(200).json({ message: "Property deleted" });
+      return res.status(200).json({
+        message: "Property deleted",
+        deletedInvestments: investmentsResult.deletedCount || 0,
+        deletedSecurityCheques: chequesResult.deletedCount || 0,
+        deletedProfitDistributions: distributionsResult.deletedCount || 0,
+      });
     } catch {
       return res.status(500).json({ message: "Server error" });
     }
@@ -111,7 +126,9 @@ export default async function handler(req, res) {
 
     await dbConnect();
 
-    const existing = await Property.findById(id).select("thumbnail galleryImages").lean();
+    const existing = await Property.findById(id)
+      .select("title constructionStatus listingStatus thumbnail galleryImages")
+      .lean();
     if (!existing) {
       return res.status(404).json({ message: "Property not found" });
     }
@@ -135,6 +152,29 @@ export default async function handler(req, res) {
 
     if (!updated) {
       return res.status(404).json({ message: "Property not found" });
+    }
+
+    const nextConstruction = updated.constructionStatus;
+    const nextListing = updated.listingStatus;
+
+    if (nextConstruction !== existing.constructionStatus) {
+      await notifyPropertyStatusChange({
+        propertyId: id,
+        propertyTitle: updated.title || existing.title || "Property",
+        field: "constructionStatus",
+        previousValue: existing.constructionStatus,
+        nextValue: nextConstruction,
+      });
+    }
+
+    if (nextListing !== existing.listingStatus) {
+      await notifyPropertyStatusChange({
+        propertyId: id,
+        propertyTitle: updated.title || existing.title || "Property",
+        field: "listingStatus",
+        previousValue: existing.listingStatus,
+        nextValue: nextListing,
+      });
     }
 
     return res.status(200).json({

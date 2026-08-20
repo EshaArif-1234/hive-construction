@@ -8,6 +8,7 @@ import {
   validatePropertyProfitShare,
 } from "@/lib/profitDistribution";
 import { populateInvestment, serializeInvestment } from "@/lib/serializeInvestment";
+import { notifyBulkProfitDistribution } from "@/lib/investorNotifications";
 
 function parseDistributionDate(value) {
   if (!value) return new Date();
@@ -130,6 +131,13 @@ export default async function handler(req, res) {
           poolSharePct: row.poolSharePct,
           stakeAmount: row.stakeAmount,
         })),
+      });
+
+      await notifyBulkProfitDistribution({
+        propertyId: String(propertyId),
+        propertyTitle: property.title,
+        allocations: preview.allocations,
+        distributedAt: distributionDate,
       });
 
       const updatedRows = await populateInvestment(

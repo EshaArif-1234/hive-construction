@@ -2,7 +2,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/dbConnect";
 import Investor from "@/models/Investor";
-import PasswordReset from "@/models/PasswordReset";
+import { upsertPasswordResetOtp } from "@/lib/ensurePasswordResetIndexes";
 import { getPrimaryAdmin } from "@/lib/adminLookup";
 import { isSmtpConfigured, sendMail } from "@/lib/mail";
 
@@ -70,11 +70,12 @@ export default async function handler(req, res) {
     const otpHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
 
-    await PasswordReset.findOneAndUpdate(
-      { email: normalizedEmail, role },
-      { email: normalizedEmail, role, otpHash, expiresAt },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    await upsertPasswordResetOtp({
+      email: normalizedEmail,
+      role,
+      otpHash,
+      expiresAt,
+    });
 
     const accountLabel = role === "admin" ? "admin" : "investor";
 

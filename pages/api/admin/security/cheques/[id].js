@@ -6,6 +6,7 @@ import {
   populateSecurityCheque,
   serializeSecurityCheque,
 } from "@/lib/serializeSecurityCheque";
+import { notifySecurityCheque } from "@/lib/investorNotifications";
 import { CHEQUE_STATUSES, SETTLEMENT_TYPES } from "@/lib/securityChequeConstants";
 
 function parseDate(value) {
@@ -145,7 +146,7 @@ export default async function handler(req, res) {
     await dbConnect();
 
     const existing = await SecurityCheque.findById(String(id))
-      .select("investmentId status")
+      .select("investorId propertyId investmentId status chequeNumber principalAmount")
       .lean();
     if (!existing) {
       return res.status(404).json({ message: "Security cheque not found" });
@@ -160,6 +161,23 @@ export default async function handler(req, res) {
     }
 
     const newStatus = update.status || existing.status;
+    if (update.status !== undefined && update.status !== existing.status) {
+      const propertyTitle =
+        updated?.propertyId && typeof updated.propertyId === "object"
+          ? updated.propertyId.title || "Property"
+          : "Property";
+
+      await notifySecurityCheque({
+        investorId: String(updated.investorId?._id || updated.investorId || existing.investorId),
+        propertyId: String(updated.propertyId?._id || updated.propertyId || existing.propertyId),
+        propertyTitle,
+        investmentId: String(updated.investmentId?._id || updated.investmentId || existing.investmentId),
+        chequeNumber: updated.chequeNumber || existing.chequeNumber,
+        status: newStatus,
+        principalAmount: updated.principalAmount ?? existing.principalAmount,
+      });
+    }
+
     if (newStatus === "cleared" || newStatus === "cancelled") {
       const settlementType = update.settlementType || updated.settlementType;
       if (settlementType === "early-withdrawal") {

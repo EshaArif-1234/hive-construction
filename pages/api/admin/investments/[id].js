@@ -9,6 +9,7 @@ import {
 } from "@/lib/serializeInvestment";
 import { computePoolSharePercentage } from "@/lib/profitDistribution";
 import { syncPropertyFunding } from "@/lib/propertyFunding";
+import { notifyProfitShare } from "@/lib/investorNotifications";
 
 function parseDistributionDate(value) {
   if (!value) return new Date();
@@ -165,6 +166,18 @@ export default async function handler(req, res) {
 
     if (setFields.amount !== undefined) {
       await syncPropertyFunding(existing.propertyId);
+    }
+
+    if (addProfitDistribution) {
+      const property = await Property.findById(String(existing.propertyId)).select("title").lean();
+      await notifyProfitShare({
+        investorId: String(updated.investorId?._id || updated.investorId),
+        propertyId: String(existing.propertyId),
+        propertyTitle: property?.title || "Property",
+        amount: Number(addProfitDistribution.amount),
+        investmentId: String(id),
+        distributedAt: parseDistributionDate(addProfitDistribution.distributedAt),
+      });
     }
 
     return res.status(200).json({
