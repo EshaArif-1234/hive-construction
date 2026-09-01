@@ -78,6 +78,10 @@ export default async function handler(req, res) {
           const investorFundingRequired = Number(inv?.propertyId?.investorFundingRequired || 0);
           const funding = fundingByPropertyId.get(propertyId) || {};
           const propertyFundingCollected = Number(funding.fundingCollected || 0);
+          const remainingFunding = Number(funding.remainingFunding || 0);
+          const fundingProgressPct = Number(funding.fundingProgressPct || 0);
+          const isFullyFunded = Boolean(funding.isFullyFunded);
+          const propertyInvestorCount = Number(funding.investorCount || 0);
           const profitAllocationSharePct =
             propertyFundingCollected > 0
               ? computePoolSharePercentage(amount, propertyFundingCollected)
@@ -95,6 +99,10 @@ export default async function handler(req, res) {
             totalPropertyCost: Number(inv?.propertyId?.totalCost || 0),
             investorFundingRequired,
             propertyFundingCollected,
+            remainingFunding,
+            fundingProgressPct,
+            isFullyFunded,
+            propertyInvestorCount,
             investorProfitShare,
             hiveProfitShare,
             amount,
@@ -111,6 +119,7 @@ export default async function handler(req, res) {
                   amount: Number(row.amount || 0),
                   distributedAt: row.distributedAt,
                   note: row.note || "",
+                  recordedBy: row.recordedBy || "",
                 }))
               : [],
             status: inv.status || "active",

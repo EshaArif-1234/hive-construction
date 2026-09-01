@@ -69,6 +69,7 @@ const navItems = [
   { label: "Investments", href: "/admin/investments", Icon: IconChart },
   { label: "Investors", href: "/admin/investors", Icon: IconUsers },
   { label: "Security & Exit Plan", href: "/admin/security", Icon: IconShield },
+  { label: "Exit Requests", href: "/admin/exit-requests", Icon: IconDocument },
   { label: "Reports", href: "/admin/reports", Icon: IconDocument },
   { label: "Settings", href: "/admin/settings", Icon: IconCog },
 ];
@@ -93,6 +94,10 @@ const ROUTE_META = {
   "/admin/security": {
     title: "Security & exit plan",
     subtitle: "Cheque security, exit rules, and compliance notes.",
+  },
+  "/admin/exit-requests": {
+    title: "Exit requests",
+    subtitle: "Review and approve investor exit requests with cheque settlement.",
   },
   "/admin/reports": {
     title: "Reports",

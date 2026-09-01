@@ -1,7 +1,11 @@
 import dbConnect from "@/lib/dbConnect";
 import Property from "@/models/Property";
 import { PUBLIC_ACTIVE_FILTER } from "@/lib/publicPropertyQuery";
-import { attachFundingStats, getPropertyFundingStats } from "@/lib/propertyFunding";
+import {
+  attachFundingStats,
+  getPropertyActiveInvestors,
+  getPropertyFundingStats,
+} from "@/lib/propertyFunding";
 import { PROPERTY_FIELDS, serializeProperty } from "@/lib/serializeProperty";
 
 export default async function handler(req, res) {
@@ -26,13 +30,19 @@ export default async function handler(req, res) {
       return res.status(404).json({ message: "Property not found" });
     }
 
-    const funding = await getPropertyFundingStats(property._id, {
-      totalCost: property.totalCost,
-      investorFundingRequired: property.investorFundingRequired,
-    });
+    const [funding, investors] = await Promise.all([
+      getPropertyFundingStats(property._id, {
+        totalCost: property.totalCost,
+        investorFundingRequired: property.investorFundingRequired,
+      }),
+      getPropertyActiveInvestors(property._id),
+    ]);
 
     return res.status(200).json({
-      property: attachFundingStats(serializeProperty(property), funding),
+      property: {
+        ...attachFundingStats(serializeProperty(property), funding),
+        investors,
+      },
     });
   } catch {
     return res.status(500).json({ message: "Server error" });

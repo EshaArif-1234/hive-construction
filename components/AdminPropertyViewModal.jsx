@@ -1,4 +1,5 @@
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import StatusBadge from "@/components/StatusBadge";
 
 function formatStatus(status) {
@@ -29,6 +30,48 @@ function yesNo(value) {
   return value ? "Yes" : "No";
 }
 
+function formatDate(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-PK", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return `${n.toFixed(2)}%`;
+}
+
+function InvestmentStatusPill({ status }) {
+  const s = String(status || "").toLowerCase();
+  const label =
+    s === "active"
+      ? "Active"
+      : s === "withdrawn"
+        ? "Withdrawn"
+        : s === "completed"
+          ? "Completed"
+          : status || "—";
+  const cls =
+    s === "active"
+      ? "bg-emerald-100 text-emerald-900"
+      : s === "completed"
+        ? "bg-sky-100 text-sky-900"
+        : s === "withdrawn"
+          ? "bg-amber-100 text-amber-900"
+          : "bg-neutral-200 text-neutral-800";
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 function DetailRow({ label, value, className = "" }) {
   return (
     <div className={className}>
@@ -41,6 +84,7 @@ function DetailRow({ label, value, className = "" }) {
 const tabs = [
   { key: "basic", label: "Basic Info" },
   { key: "financial", label: "Financial" },
+  { key: "investors", label: "Investors" },
   { key: "construction", label: "Construction" },
   { key: "media", label: "Media" },
   { key: "rules", label: "Rules" },
@@ -48,6 +92,57 @@ const tabs = [
 
 export default function AdminPropertyViewModal({ property, loading, error, onClose, onEdit }) {
   const [tab, setTab] = useState("basic");
+  const [investments, setInvestments] = useState([]);
+  const [investmentsSummary, setInvestmentsSummary] = useState(null);
+  const [investmentsLoading, setInvestmentsLoading] = useState(false);
+  const [investmentsError, setInvestmentsError] = useState("");
+
+  useEffect(() => {
+    const propertyId = property?.id;
+    if (!propertyId) {
+      setInvestments([]);
+      setInvestmentsSummary(null);
+      setInvestmentsError("");
+      return;
+    }
+
+    let cancelled = false;
+    const loadInvestments = async () => {
+      setInvestmentsLoading(true);
+      setInvestmentsError("");
+      try {
+        const res = await fetch(
+          `/api/admin/investments?propertyId=${encodeURIComponent(String(propertyId))}&status=active`
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) {
+            setInvestmentsError(data?.message || "Unable to load investors.");
+            setInvestments([]);
+            setInvestmentsSummary(null);
+          }
+          return;
+        }
+        if (!cancelled) {
+          setInvestments(Array.isArray(data?.investments) ? data.investments : []);
+          setInvestmentsSummary(data?.summary || null);
+        }
+      } catch {
+        if (!cancelled) {
+          setInvestmentsError("Unable to load investors.");
+          setInvestments([]);
+          setInvestmentsSummary(null);
+        }
+      } finally {
+        if (!cancelled) setInvestmentsLoading(false);
+      }
+    };
+
+    loadInvestments();
+    return () => {
+      cancelled = true;
+    };
+  }, [property?.id]);
 
   const images = [
     ...(property?.thumbnail?.url ? [property.thumbnail] : []),
@@ -94,7 +189,7 @@ export default function AdminPropertyViewModal({ property, loading, error, onClo
           ) : property ? (
             <>
               <div className="mb-6 rounded-xl border border-hive-taupe/20 bg-hive-light p-2">
-                <div className="grid gap-2 sm:grid-cols-5">
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
                   {tabs.map((item) => (
                     <button
                       key={item.key}
@@ -154,6 +249,121 @@ export default function AdminPropertyViewModal({ property, loading, error, onClo
                       <DetailRow label="Mosque" value={yesNo(property.nearbyMosque)} />
                     </div>
                   </div>
+                </div>
+              ) : null}
+
+              {tab === "investors" ? (
+                <div className="space-y-4">
+                  {investmentsLoading ? (
+                    <p className="py-8 text-center text-sm text-hive-slate">Loading investors…</p>
+                  ) : investmentsError ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      {investmentsError}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs text-hive-slate/80">
+                        Showing active investments only. Investors who exit are removed from this list.
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
+                          <p className="text-[10px] font-semibold uppercase text-hive-slate/70">
+                            Total invested
+                          </p>
+                          <p className="mt-1 text-lg font-bold tabular-nums text-hive-charcoal">
+                            {formatCurrency(investmentsSummary?.totalPrincipal ?? 0)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
+                          <p className="text-[10px] font-semibold uppercase text-hive-slate/70">
+                            Profit distributed
+                          </p>
+                          <p className="mt-1 text-lg font-bold tabular-nums text-hive-charcoal">
+                            {formatCurrency(investmentsSummary?.totalProfit ?? 0)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
+                          <p className="text-[10px] font-semibold uppercase text-hive-slate/70">
+                            Active investments
+                          </p>
+                          <p className="mt-1 text-lg font-bold tabular-nums text-hive-charcoal">
+                            {investmentsSummary?.activeCount ?? 0}
+                          </p>
+                        </div>
+                      </div>
+
+                      {investments.length === 0 ? (
+                        <p className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-6 text-center text-sm text-hive-slate">
+                          No active investors on this property. Exited or withdrawn investments are not shown.
+                        </p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-hive-taupe/15">
+                          <table className="min-w-full divide-y divide-hive-taupe/15 text-sm">
+                            <thead className="bg-neutral-50">
+                              <tr>
+                                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-hive-slate">
+                                  Investor
+                                </th>
+                                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-hive-slate">
+                                  Amount
+                                </th>
+                                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-hive-slate">
+                                  Pool share
+                                </th>
+                                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-hive-slate">
+                                  Invested on
+                                </th>
+                                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-hive-slate">
+                                  Profit
+                                </th>
+                                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-hive-slate">
+                                  Status
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-hive-taupe/10 bg-hive-light">
+                              {investments.map((row) => (
+                                <tr key={row.id} className="hover:bg-neutral-50/80">
+                                  <td className="px-3 py-3">
+                                    <div>
+                                      {row.investorId ? (
+                                        <Link
+                                          href={`/admin/investors/${row.investorId}`}
+                                          className="font-semibold text-hive-charcoal hover:text-hive-taupe"
+                                        >
+                                          {row.investorName}
+                                        </Link>
+                                      ) : (
+                                        <p className="font-semibold text-hive-charcoal">
+                                          {row.investorName}
+                                        </p>
+                                      )}
+                                      <p className="mt-0.5 text-xs text-hive-slate">{row.investorEmail}</p>
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-3 tabular-nums font-medium text-hive-charcoal">
+                                    {formatCurrency(row.amount)}
+                                  </td>
+                                  <td className="px-3 py-3 tabular-nums text-hive-charcoal">
+                                    {formatPct(row.sharePercentage)}
+                                  </td>
+                                  <td className="px-3 py-3 text-hive-charcoal">
+                                    {formatDate(row.investmentDate)}
+                                  </td>
+                                  <td className="px-3 py-3 tabular-nums text-hive-charcoal">
+                                    {formatCurrency(row.profitAmount)}
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <InvestmentStatusPill status={row.status} />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               ) : null}
 

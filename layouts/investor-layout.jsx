@@ -51,6 +51,8 @@ function IconCog(props) {
   );
 }
 
+const INVESTOR_PAGE_X = "px-3 sm:px-4 lg:px-5";
+
 const navItems = [
   { label: "Dashboard", href: "/investor", Icon: IconDashboard },
   { label: "My Investments", href: "/investor/investments", Icon: IconChart },
@@ -245,7 +247,7 @@ export default function InvestorLayout({ children }) {
   return (
     <div className="min-h-dvh bg-hive-light text-hive-slate">
       <div className="border-b border-hive-taupe/30 bg-hive-charcoal">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div className={`mx-auto flex w-full items-center justify-between py-4 ${INVESTOR_PAGE_X}`}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">
               Investor Portal
@@ -306,7 +308,7 @@ export default function InvestorLayout({ children }) {
         <header className="sticky top-0 z-30 shrink-0 border-b border-neutral-200/90 bg-white/95 shadow-[0_1px_0_rgba(0,0,0,0.03)] backdrop-blur-xl">
           <div className="relative overflow-hidden">
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-hive-taupe/35 to-transparent" />
-            <div className="flex min-h-[4.25rem] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+            <div className={`flex min-h-[4.25rem] items-center justify-between gap-4 py-3 ${INVESTOR_PAGE_X}`}>
               <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center sm:gap-4">
                 <button
                   type="button"
@@ -351,8 +353,8 @@ export default function InvestorLayout({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        <main className={`flex-1 py-5 lg:py-6 ${INVESTOR_PAGE_X}`}>
+          <div className="w-full">{children}</div>
         </main>
       </div>
     </div>

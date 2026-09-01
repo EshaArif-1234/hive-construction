@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 import StatusBadge from "@/components/StatusBadge";
+import PropertyInvestorsSection, { InvestorAvatarStack } from "@/components/PropertyInvestorProfile";
 import WebsiteFooter from "@/components/WebsiteFooter";
 import { buildInvestorLoginRoute, buildInvestorSignupRoute } from "@/lib/investorAuthRedirect";
 import { computeFundingProgressPct, computeInvestorPoolProgressPct } from "@/lib/fundingProgress";
@@ -71,6 +72,33 @@ function humanizeKebab(value) {
     .join(" ");
 }
 
+function SectionCard({ eyebrow, title, children, className = "" }) {
+  return (
+    <div
+      className={
+        "overflow-hidden rounded-3xl border border-hive-taupe/20 bg-gradient-to-br from-hive-light via-white to-hive-taupe/[0.04] p-6 shadow-sm " +
+        className
+      }
+    >
+      {eyebrow ? (
+        <p className="text-xs font-semibold uppercase tracking-widest text-hive-taupe">{eyebrow}</p>
+      ) : null}
+      {title ? <h2 className="mt-1 text-lg font-semibold text-hive-charcoal">{title}</h2> : null}
+      {children}
+    </div>
+  );
+}
+
+function StatTile({ label, value, hint }) {
+  return (
+    <div className="rounded-2xl border border-hive-taupe/15 bg-white/70 p-4 shadow-sm backdrop-blur-sm transition-shadow hover:shadow-md">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">{label}</p>
+      <p className="mt-1 text-sm font-bold tabular-nums text-hive-charcoal">{value}</p>
+      {hint ? <p className="mt-0.5 text-xs text-hive-slate">{hint}</p> : null}
+    </div>
+  );
+}
+
 export default function PropertyDetailsPage() {
   const router = useRouter();
   const { id, invest } = router.query;
@@ -114,6 +142,7 @@ export default function PropertyDetailsPage() {
       currentFundingCollected: collected,
       remainingFunding: remaining,
       investorCount: Number(p.investorCount || 0),
+      activeInvestors: Array.isArray(p.investors) ? p.investors : [],
       isFullyFunded: Boolean(p.isFullyFunded) || (required > 0 && remaining <= 0),
       minimumInvestmentAllowed: p.minimumInvestment,
       investorProfitSharePct: p.investorProfitShare,
@@ -359,6 +388,7 @@ export default function PropertyDetailsPage() {
   const currentFundingCollectedNum = Number(property?.currentFundingCollected || 0);
   const remainingFundingNum = Number(property?.remainingFunding ?? Math.max(0, investorContributionNum - currentFundingCollectedNum));
   const investorCountNum = Number(property?.investorCount || 0);
+  const activeInvestors = Array.isArray(property?.activeInvestors) ? property.activeInvestors : [];
   const hiveContributionNum = Number(property?.hiveContribution || 0);
   const minimumInvestmentNum = Number(property?.minimumInvestmentAllowed || property?.minimumInvestment || 0);
   const fundingProgressNum = Math.min(
@@ -405,158 +435,167 @@ export default function PropertyDetailsPage() {
         />
       </Head>
 
-      <section>
+      <section className="pb-16">
           {error ? (
-            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
               {error}
             </div>
           ) : null}
           {loading ? (
-            <div className="mb-6 rounded-xl border border-hive-taupe/20 bg-hive-light p-3 text-sm text-hive-slate">
-              Loading property...
+            <div className="mb-6 animate-pulse rounded-3xl border border-hive-taupe/20 bg-hive-light p-8 text-center text-sm text-hive-slate">
+              Loading property details…
             </div>
           ) : null}
 
           <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_360px]">
             <div className="space-y-6">
-              <div className="relative isolate overflow-hidden rounded-2xl border border-hive-taupe/20 bg-zinc-100">
-                <div className="relative h-72 w-full sm:h-96">
+              <div className="group relative isolate overflow-hidden rounded-3xl border border-hive-taupe/20 bg-zinc-100 shadow-lg">
+                <div className="relative h-72 w-full sm:h-[28rem]">
                   {String(activeImage).startsWith("/api/") || String(activeImage).startsWith("data:") ? (
                     <img
                       src={activeImage}
                       alt={`${property?.title ?? "Property"} image`}
-                      className="absolute inset-0 z-0 h-full w-full object-cover"
+                      className="absolute inset-0 z-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
                     />
                   ) : (
                     <Image
                       src={activeImage}
                       alt={`${property?.title ?? "Property"} image`}
                       fill
-                      className="z-0 object-cover"
+                      className="z-0 object-cover transition-transform duration-700 group-hover:scale-[1.02]"
                       sizes="(max-width: 1024px) 100vw, 70vw"
                     />
                   )}
+                  <div className="absolute inset-0 z-10 bg-gradient-to-t from-hive-charcoal/85 via-hive-charcoal/25 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 z-20 p-6 sm:p-8">
+                    <div className="flex flex-wrap items-end justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-hive-taupe">
+                          {humanizeKebab(property?.type)} · {property?.location}
+                        </p>
+                        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                          {property?.title}
+                        </h1>
+                        <p className="mt-2 text-sm text-white/75">
+                          {formatRiskLevel(property?.riskLevel)} risk · {humanizeKebab(property?.constructionStatus)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge status={formatStatus(property?.status)} />
+                        {property?.isFullyFunded ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-500/90 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                            Fully funded
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 {property?.featuredProperty ? (
-                  <div className="absolute right-4 top-4 rounded-full bg-hive-taupe px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-hive-charcoal">
-                    Featured Property
+                  <div className="absolute right-4 top-4 z-20 rounded-full bg-hive-taupe px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-hive-charcoal shadow-md">
+                    Featured
+                  </div>
+                ) : null}
+                {(galleryIndexes ?? []).length > 1 ? (
+                  <div className="absolute bottom-24 left-1/2 z-20 flex -translate-x-1/2 gap-2 sm:bottom-28">
+                    {(galleryIndexes ?? []).slice(0, 6).map((idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveIndex(idx)}
+                        aria-label={`Show image ${idx + 1}`}
+                        className={
+                          "h-2 rounded-full transition-all " +
+                          (activeIndex === idx ? "w-8 bg-hive-taupe" : "w-2 bg-white/50 hover:bg-white/80")
+                        }
+                      />
+                    ))}
                   </div>
                 ) : null}
               </div>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-hive-charcoal sm:text-4xl">{property?.title}</h1>
-                    <p className="mt-2 text-sm text-hive-slate">{property?.location}</p>
-                    <p className="mt-2 text-sm text-hive-slate">
-                      {humanizeKebab(property?.type)} · {formatRiskLevel(property?.riskLevel)} Risk ·{" "}
-                      {humanizeKebab(property?.constructionStatus)}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusBadge status={formatStatus(property?.status)} />
-                    {property?.isFullyFunded ? (
-                      <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
-                        Fully funded
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-hive-taupe/30 bg-hive-taupe/10 px-3 py-1 text-xs font-semibold text-hive-charcoal">
+              <SectionCard eyebrow="Highlights" title={null}>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-hive-taupe/30 bg-hive-taupe/15 px-4 py-1.5 text-xs font-semibold text-hive-charcoal shadow-sm">
                     {investorProfitSharePct}% / {hiveProfitSharePct}% profit split
                   </span>
-                  <span className="rounded-full border border-hive-taupe/20 px-3 py-1 text-xs font-semibold text-hive-slate">
-                    Min. investment: {formatMinimumInvestment(minimumInvestmentNum)}
+                  <span className="rounded-full border border-hive-taupe/20 bg-white/80 px-4 py-1.5 text-xs font-semibold text-hive-slate shadow-sm">
+                    Min. {formatMinimumInvestment(minimumInvestmentNum)}
                   </span>
-                  <span className="rounded-full border border-hive-taupe/20 px-3 py-1 text-xs font-semibold text-hive-slate">
-                    {property?.expectedCompletionDurationMonths || 0} months duration
+                  <span className="rounded-full border border-hive-taupe/20 bg-white/80 px-4 py-1.5 text-xs font-semibold text-hive-slate shadow-sm">
+                    {property?.expectedCompletionDurationMonths || 0} months
                   </span>
+                  {activeInvestors.length > 0 ? (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-hive-taupe/20 bg-white/80 px-3 py-1.5 shadow-sm">
+                      <InvestorAvatarStack investors={activeInvestors} max={3} />
+                      <span className="text-xs font-semibold text-hive-charcoal">
+                        {investorCountNum} investor{investorCountNum === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                  ) : null}
                 </div>
-              </div>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Property Overview</h2>
-                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-[220px_1fr]">
-                  <p className="font-semibold text-hive-charcoal">Type</p><p className="text-hive-slate">{humanizeKebab(property?.type)}</p>
-                  <p className="font-semibold text-hive-charcoal">City</p><p className="text-hive-slate">{property?.location || "N/A"}</p>
-                  <p className="font-semibold text-hive-charcoal">Address</p><p className="text-hive-slate">{property?.fullAddress || "N/A"}</p>
-                  <p className="font-semibold text-hive-charcoal">Construction Status</p><p className="text-hive-slate">{humanizeKebab(property?.constructionStatus)}</p>
+              <SectionCard eyebrow="Overview" title="Property Overview">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {[
+                    ["Type", humanizeKebab(property?.type)],
+                    ["City", property?.location || "N/A"],
+                    ["Address", property?.fullAddress || "N/A"],
+                    ["Construction", humanizeKebab(property?.constructionStatus)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-hive-taupe/10 bg-white/60 px-4 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-hive-slate/70">{label}</p>
+                      <p className="mt-1 text-sm font-medium text-hive-charcoal">{value}</p>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Financial Information</h2>
+              <SectionCard eyebrow="Financials" title="Financial Information">
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Total cost</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">{formatPlainCurrency(totalCostNum)}</p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Investor funding</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">{formatPlainCurrency(investorContributionNum)}</p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Hive contribution</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">{formatPlainCurrency(hiveContributionNum)}</p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Minimum investment</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">{formatMinimumInvestment(minimumInvestmentNum)}</p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Profit split</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">
-                      {investorProfitSharePct}% / {hiveProfitSharePct}%
-                    </p>
-                    <p className="mt-0.5 text-xs text-hive-slate">Investors / Hive</p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Expected duration</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">{property?.expectedCompletionDurationMonths || 0} months</p>
-                  </div>
+                  <StatTile label="Total cost" value={formatPlainCurrency(totalCostNum)} />
+                  <StatTile label="Investor funding" value={formatPlainCurrency(investorContributionNum)} />
+                  <StatTile label="Hive contribution" value={formatPlainCurrency(hiveContributionNum)} />
+                  <StatTile label="Minimum investment" value={formatMinimumInvestment(minimumInvestmentNum)} />
+                  <StatTile
+                    label="Profit split"
+                    value={`${investorProfitSharePct}% / ${hiveProfitSharePct}%`}
+                    hint="Investors / Hive"
+                  />
+                  <StatTile
+                    label="Expected duration"
+                    value={`${property?.expectedCompletionDurationMonths || 0} months`}
+                  />
                 </div>
-              </div>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-base font-semibold text-hive-charcoal">Funding Progress</h2>
+              <SectionCard eyebrow="Funding" title="Funding Progress">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   {property?.isFullyFunded ? (
                     <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
                       Fully funded
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="rounded-full bg-hive-taupe/15 px-3 py-1 text-xs font-semibold text-hive-charcoal">
+                      {fundingProgressNum.toFixed(1)}% funded
+                    </span>
+                  )}
                 </div>
-                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-zinc-200">
+                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-zinc-200/80 shadow-inner">
                   <div
-                    className="h-full rounded-full bg-hive-taupe transition-all duration-500"
+                    className="h-full rounded-full bg-gradient-to-r from-hive-taupe via-amber-400 to-hive-taupe transition-all duration-700 ease-out"
                     style={{ width: `${fundingProgressNum}%` }}
                   />
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Raised</p>
-                    <p className="mt-1 text-sm font-bold tabular-nums text-hive-charcoal">
-                      {formatPlainCurrency(currentFundingCollectedNum)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Remaining</p>
-                    <p className="mt-1 text-sm font-bold tabular-nums text-hive-charcoal">
-                      {formatPlainCurrency(remainingFundingNum)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Investors</p>
-                    <p className="mt-1 text-sm font-bold tabular-nums text-hive-charcoal">{investorCountNum}</p>
-                  </div>
+                  <StatTile label="Raised" value={formatPlainCurrency(currentFundingCollectedNum)} />
+                  <StatTile label="Remaining" value={formatPlainCurrency(remainingFundingNum)} />
+                  <StatTile label="Investors" value={String(investorCountNum)} />
                 </div>
-                <p className="mt-3 text-sm text-hive-slate">
+                <p className="mt-4 text-sm text-hive-slate">
                   {formatPlainCurrency(currentFundingCollectedNum)} raised of{" "}
                   {formatPlainCurrency(fundingProgressDenominatorNum)} total project cost
-                  ({fundingProgressNum.toFixed(1)}%)
                 </p>
                 {investorContributionNum > 0 ? (
                   <p className="mt-1 text-xs text-hive-slate/80">
@@ -564,105 +603,186 @@ export default function PropertyDetailsPage() {
                     {formatPlainCurrency(investorContributionNum)} ({investorPoolProgressNum.toFixed(1)}%)
                   </p>
                 ) : null}
-              </div>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Investment preview</h2>
-                <label className="mt-3 block text-sm font-semibold text-hive-charcoal">Enter investment amount</label>
+              <PropertyInvestorsSection investors={activeInvestors} investorCount={investorCountNum} />
+
+              <SectionCard eyebrow="Calculator" title="Investment Preview">
+                <label className="mt-4 block text-sm font-semibold text-hive-charcoal">Enter investment amount</label>
                 <input
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="mt-2 w-full rounded-md border border-hive-taupe/20 bg-hive-light px-3 py-2 text-sm text-hive-charcoal outline-none focus:border-hive-taupe"
+                  className="mt-2 w-full rounded-xl border border-hive-taupe/20 bg-white/80 px-4 py-3 text-sm text-hive-charcoal shadow-sm outline-none transition focus:border-hive-taupe focus:ring-2 focus:ring-hive-taupe/20"
                   placeholder={minimumInvestmentNum > 0 ? String(minimumInvestmentNum) : "100000"}
                   inputMode="numeric"
                 />
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Pool ownership</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">{estimatedSharePct.toFixed(2)}%</p>
-                  </div>
-                  <div className="rounded-xl border border-hive-taupe/15 bg-neutral-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-hive-slate/70">Profit split</p>
-                    <p className="mt-1 text-sm font-bold text-hive-charcoal">
-                      {investorProfitSharePct}% / {hiveProfitSharePct}%
-                    </p>
-                  </div>
+                  <StatTile label="Pool ownership" value={`${estimatedSharePct.toFixed(2)}%`} />
+                  <StatTile
+                    label="Profit split"
+                    value={`${investorProfitSharePct}% / ${hiveProfitSharePct}%`}
+                  />
                 </div>
-                <p className="mt-3 text-xs leading-relaxed text-hive-slate/80">
+                <p className="mt-4 text-xs leading-relaxed text-hive-slate/80">
                   Minimum investment: {formatMinimumInvestment(minimumInvestmentNum)}. When the property generates profit,
                   {` ${investorProfitSharePct}%`} is shared among investors based on each person&apos;s pool share.
                 </p>
-              </div>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Property Description</h2>
-                <p className="mt-3 text-sm leading-7 text-hive-slate">{property?.description || "No description provided yet."}</p>
-              </div>
+              <SectionCard eyebrow="About" title="Property Description">
+                <p className="mt-4 text-sm leading-7 text-hive-slate">
+                  {property?.description || "No description provided yet."}
+                </p>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Property Features</h2>
-                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-[220px_1fr]">
-                  <p className="font-semibold text-hive-charcoal">Bedrooms</p><p className="text-hive-slate">{Number(property?.bedrooms || 0)}</p>
-                  <p className="font-semibold text-hive-charcoal">Bathrooms</p><p className="text-hive-slate">{Number(property?.bathrooms || 0)}</p>
-                  <p className="font-semibold text-hive-charcoal">Area Size</p><p className="text-hive-slate">{Number(property?.areaSize || 0)} sq.ft</p>
-                  <p className="font-semibold text-hive-charcoal">Garage</p><p className="text-hive-slate">{Number(property?.garage || 0)}</p>
-                  <p className="font-semibold text-hive-charcoal">Floors</p><p className="text-hive-slate">{Number(property?.floorCount || 0)}</p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Nearby Facilities</h2>
-                <ul className="mt-3 space-y-2 text-sm text-hive-slate">
-                  <li>{property?.nearbySchool ? "✔" : "✖"} School</li>
-                  <li>{property?.nearbyHospital ? "✔" : "✖"} Hospital</li>
-                  <li>{property?.nearbyMarket ? "✔" : "✖"} Market</li>
-                  <li>{property?.nearbyMosque ? "✔" : "✖"} Mosque</li>
-                </ul>
-              </div>
-
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Construction Timeline</h2>
-                <ul className="mt-3 space-y-2 text-sm text-hive-slate">
-                  {timelineStages.map((stage, idx) => (
-                    <li key={stage}>
-                      {(currentStageIndex >= idx && currentStageIndex !== -1) ? "✔" : "⏳"} {humanizeKebab(stage)}
-                    </li>
+              <SectionCard eyebrow="Specs" title="Property Features">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    ["Bedrooms", Number(property?.bedrooms || 0), "🛏"],
+                    ["Bathrooms", Number(property?.bathrooms || 0), "🚿"],
+                    ["Area", `${Number(property?.areaSize || 0)} sq.ft`, "📐"],
+                    ["Garage", Number(property?.garage || 0), "🚗"],
+                    ["Floors", Number(property?.floorCount || 0), "🏢"],
+                  ].map(([label, value, icon]) => (
+                    <div
+                      key={label}
+                      className="flex items-center gap-3 rounded-2xl border border-hive-taupe/10 bg-white/70 px-4 py-3 shadow-sm"
+                    >
+                      <span className="text-xl">{icon}</span>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-hive-slate/70">{label}</p>
+                        <p className="text-sm font-bold text-hive-charcoal">{value}</p>
+                      </div>
+                    </div>
                   ))}
-                </ul>
-              </div>
+                </div>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Exit &amp; Security Rules</h2>
-                <ul className="mt-3 space-y-2 text-sm text-hive-slate">
-                  <li>✔ Investor Protection Enabled: {formatYesNo(property?.investorProtectionEnabled !== false)}</li>
-                  <li>✔ Early Withdrawal Allowed: {formatYesNo(property?.earlyWithdrawalAllowed !== false)}</li>
-                  <li>✔ Early Withdrawal Profit: {formatEarlyWithdrawalProfitRule(property?.earlyWithdrawalProfitRule)}</li>
-                  <li>✔ Original Investment Protection</li>
-                </ul>
-              </div>
+              <SectionCard eyebrow="Location" title="Nearby Facilities">
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {[
+                    ["School", property?.nearbySchool],
+                    ["Hospital", property?.nearbyHospital],
+                    ["Market", property?.nearbyMarket],
+                    ["Mosque", property?.nearbyMosque],
+                  ].map(([label, enabled]) => (
+                    <span
+                      key={label}
+                      className={
+                        "inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold shadow-sm " +
+                        (enabled
+                          ? "border border-emerald-200 bg-emerald-50 text-emerald-900"
+                          : "border border-hive-taupe/15 bg-neutral-100 text-hive-slate")
+                      }
+                    >
+                      {enabled ? "✓" : "—"} {label}
+                    </span>
+                  ))}
+                </div>
+              </SectionCard>
 
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-light p-6">
-                <h2 className="text-base font-semibold text-hive-charcoal">Property Gallery</h2>
+              <SectionCard eyebrow="Progress" title="Construction Timeline">
+                <div className="mt-6 space-y-0">
+                  {timelineStages.map((stage, idx) => {
+                    const done = currentStageIndex >= idx && currentStageIndex !== -1;
+                    const current = currentStageIndex === idx;
+                    return (
+                      <div key={stage} className="relative flex gap-4 pb-6 last:pb-0">
+                        {idx < timelineStages.length - 1 ? (
+                          <div
+                            className={
+                              "absolute left-[11px] top-6 h-[calc(100%-0.5rem)] w-0.5 " +
+                              (done ? "bg-hive-taupe" : "bg-hive-taupe/20")
+                            }
+                          />
+                        ) : null}
+                        <div
+                          className={
+                            "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold " +
+                            (done
+                              ? "bg-hive-taupe text-hive-charcoal shadow-sm"
+                              : "border-2 border-hive-taupe/30 bg-white text-hive-slate")
+                          }
+                        >
+                          {done ? "✓" : idx + 1}
+                        </div>
+                        <div className="min-w-0 pt-0.5">
+                          <p
+                            className={
+                              "text-sm font-semibold " +
+                              (current ? "text-hive-taupe" : done ? "text-hive-charcoal" : "text-hive-slate")
+                            }
+                          >
+                            {humanizeKebab(stage)}
+                          </p>
+                          {current ? (
+                            <p className="mt-0.5 text-xs font-medium text-hive-taupe">Current stage</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+
+              <SectionCard eyebrow="Policy" title="Exit & Security Rules">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {[
+                    ["Investor protection", formatYesNo(property?.investorProtectionEnabled !== false)],
+                    ["Early withdrawal", formatYesNo(property?.earlyWithdrawalAllowed !== false)],
+                    [
+                      "Withdrawal profit",
+                      formatEarlyWithdrawalProfitRule(property?.earlyWithdrawalProfitRule),
+                    ],
+                    ["Principal protection", "Enabled"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-hive-taupe/10 bg-white/60 px-4 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-hive-slate/70">{label}</p>
+                      <p className="mt-1 text-sm font-semibold text-hive-charcoal">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard eyebrow="Gallery" title="Property Gallery">
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {(galleryIndexes ?? []).map((idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setActiveIndex(idx)}
-                      className="relative h-20 overflow-hidden rounded-xl border border-hive-taupe/20"
+                      className={
+                        "group relative h-24 overflow-hidden rounded-2xl border-2 transition-all duration-200 " +
+                        (activeIndex === idx
+                          ? "border-hive-taupe shadow-lg ring-2 ring-hive-taupe/30"
+                          : "border-hive-taupe/20 hover:border-hive-taupe/50")
+                      }
                     >
-                      <img src={thumbSrc(idx)} alt={`Property image ${idx + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                      <img
+                        src={thumbSrc(idx)}
+                        alt={`Property image ${idx + 1}`}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      />
                     </button>
                   ))}
                 </div>
-              </div>
+              </SectionCard>
             </div>
 
             <aside className="lg:sticky lg:top-24 lg:h-fit">
-              <div className="rounded-2xl border border-hive-taupe/20 bg-hive-charcoal p-6 text-hive-light">
+              <div className="overflow-hidden rounded-3xl border border-hive-taupe/20 bg-gradient-to-br from-hive-charcoal via-hive-charcoal to-hive-slate p-6 text-hive-light shadow-xl">
                 <h3 className="text-sm font-semibold uppercase tracking-widest text-hive-taupe">Start Investment</h3>
 
-                <div className="mt-4 space-y-3 rounded-xl border border-hive-taupe/25 bg-hive-slate/40 p-4 text-sm">
+                {activeInvestors.length > 0 ? (
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-hive-taupe/25 bg-white/5 p-3 backdrop-blur-sm">
+                    <InvestorAvatarStack investors={activeInvestors} max={5} />
+                    <p className="text-xs text-hive-light/75">
+                      <span className="font-bold text-hive-light">{investorCountNum}</span> backing this property
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="mt-4 space-y-3 rounded-2xl border border-hive-taupe/25 bg-hive-slate/40 p-4 text-sm backdrop-blur-sm">
                   <div className="flex justify-between gap-3">
                     <span className="text-hive-light/75">Raised</span>
                     <span className="font-semibold tabular-nums">{formatPlainCurrency(currentFundingCollectedNum)}</span>
@@ -675,9 +795,9 @@ export default function PropertyDetailsPage() {
                     <span className="text-hive-light/75">Investors</span>
                     <span className="font-semibold tabular-nums">{investorCountNum}</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-hive-charcoal">
+                  <div className="h-2 overflow-hidden rounded-full bg-hive-charcoal/80">
                     <div
-                      className="h-full rounded-full bg-hive-taupe transition-all duration-500"
+                      className="h-full rounded-full bg-gradient-to-r from-hive-taupe to-amber-300 transition-all duration-700"
                       style={{ width: `${fundingProgressNum}%` }}
                     />
                   </div>
@@ -719,7 +839,7 @@ export default function PropertyDetailsPage() {
                   type="button"
                   disabled={checkingAuth || !canInvest}
                   onClick={handleInvestClick}
-                  className="mt-5 inline-flex w-full items-center justify-center rounded-md bg-hive-taupe px-4 py-2.5 text-sm font-semibold text-hive-charcoal transition-colors hover:bg-hive-light disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-hive-taupe to-amber-300 px-4 py-3 text-sm font-bold text-hive-charcoal shadow-lg transition-all hover:shadow-xl hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {checkingAuth
                     ? "Checking session…"

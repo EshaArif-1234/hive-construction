@@ -9,7 +9,7 @@ const TYPE_FILTERS = [
   { id: "property-status", label: "Property Status" },
   { id: "profit-share", label: "Profit Share" },
   { id: "security", label: "Security" },
-  { id: "account", label: "Account" },
+  { id: "exit", label: "Exit" },
 ];
 
 function formatDate(value) {

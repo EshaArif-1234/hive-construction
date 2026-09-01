@@ -6,7 +6,10 @@ import {
   populateSecurityCheque,
   serializeSecurityCheque,
 } from "@/lib/serializeSecurityCheque";
-import { notifySecurityCheque } from "@/lib/investorNotifications";
+import {
+  notifySecurityCheque,
+  notifyExitRequestCompleted,
+} from "@/lib/investorNotifications";
 import { CHEQUE_STATUSES, SETTLEMENT_TYPES } from "@/lib/securityChequeConstants";
 
 function parseDate(value) {
@@ -180,10 +183,30 @@ export default async function handler(req, res) {
 
     if (newStatus === "cleared" || newStatus === "cancelled") {
       const settlementType = update.settlementType || updated.settlementType;
-      if (settlementType === "early-withdrawal") {
-        await Investment.findByIdAndUpdate(String(existing.investmentId), {
+      if (settlementType === "early-withdrawal" || settlementType === "other") {
+        const inv = await Investment.findByIdAndUpdate(String(existing.investmentId), {
           status: "withdrawn",
+        }).select("propertyId investorId").lean();
+
+        if (inv?.propertyId) {
+          await syncPropertyFunding(inv.propertyId);
+        }
+
+        const completed = await completeExitRequestForInvestment(String(existing.investmentId), {
+          securityChequeId: String(id),
         });
+
+        if (completed && newStatus === "cleared") {
+          const property = await Property.findById(existing.propertyId || inv?.propertyId)
+            .select("title")
+            .lean();
+          await notifyExitRequestCompleted({
+            investorId: String(existing.investorId),
+            propertyId: String(existing.propertyId || inv?.propertyId),
+            propertyTitle: property?.title || "Property",
+            investmentId: String(existing.investmentId),
+          });
+        }
       } else if (settlementType === "project-completion" && newStatus === "cleared") {
         await Investment.findByIdAndUpdate(String(existing.investmentId), {
           status: "completed",

@@ -6,6 +6,7 @@ export const NOTIFICATION_TYPES = [
   "profit-share",
   "security",
   "account",
+  "exit",
 ];
 
 const InvestorNotificationSchema = new mongoose.Schema(
